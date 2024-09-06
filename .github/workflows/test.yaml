@@ -6,11 +6,13 @@ on:
       - main
     paths:
       - pkg/**
+      - .github/**
   pull_request:
     branches:
       - main
     paths:
       - pkg/**
+      - .github/**
 
 jobs:
   test:
