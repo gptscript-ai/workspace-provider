@@ -116,11 +116,14 @@ func TestFileRead(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error when reading file: %v", err)
 	}
-	defer readFile.Close()
 
 	content, err := io.ReadAll(readFile)
 	if err != nil {
 		t.Errorf("unexpected error when reading file: %v", err)
+	}
+
+	if err = readFile.Close(); err != nil {
+		t.Errorf("error closing file: %v", err)
 	}
 
 	if string(content) != "test" {
