@@ -3,7 +3,6 @@ package client
 import (
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -22,7 +21,7 @@ type directory struct {
 
 func (d *directory) New(id string) workspaceClient {
 	id = strings.TrimPrefix(id, "directory://")
-	if !path.IsAbs(id) {
+	if !filepath.IsAbs(id) {
 		id = filepath.Join(d.dataHome, id)
 	}
 	return &directory{
@@ -37,7 +36,7 @@ func (d *directory) Create() (string, error) {
 
 func (d *directory) Rm(id string) error {
 	id = strings.TrimPrefix(id, "directory://")
-	if !path.IsAbs(id) {
+	if !filepath.IsAbs(id) {
 		id = filepath.Join(d.dataHome, id)
 	}
 	return os.RemoveAll(id)
