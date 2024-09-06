@@ -5,8 +5,8 @@ import (
 	"io"
 	"iter"
 	"maps"
-	"net/url"
 	"path/filepath"
+	"strings"
 
 	"github.com/adrg/xdg"
 )
@@ -98,12 +98,12 @@ func (c *Client) Create(provider string, fromWorkspaces ...string) (string, erro
 }
 
 func (c *Client) Rm(id string) error {
-	u, err := url.Parse(id)
-	if err != nil {
+	provider, _, ok := strings.Cut(id, "://")
+	if !ok {
 		return fmt.Errorf("invalid workspace id: %s", id)
 	}
 
-	f, err := c.getFactory(u.Scheme)
+	f, err := c.getFactory(provider)
 	if err != nil {
 		return err
 	}
@@ -148,12 +148,12 @@ func (c *Client) WriteFile(id, fileName string) (io.WriteCloser, error) {
 }
 
 func (c *Client) getClient(id string) (workspaceClient, error) {
-	u, err := url.Parse(id)
-	if err != nil {
+	provider, _, ok := strings.Cut(id, "://")
+	if !ok {
 		return nil, fmt.Errorf("invalid workspace id: %s", id)
 	}
 
-	f, err := c.getFactory(u.Scheme)
+	f, err := c.getFactory(provider)
 	if err != nil {
 		return nil, err
 	}
