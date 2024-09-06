@@ -20,10 +20,10 @@ func newLs(root *workspaceProvider) *cobra.Command {
 	return c
 }
 
-func (l *ls) Run(_ *cobra.Command, args []string) error {
+func (l *ls) Run(cmd *cobra.Command, args []string) error {
 	for _, arg := range args {
 		fmt.Println(arg + ":")
-		contents, err := l.root.client.Ls(arg)
+		contents, err := l.root.client.Ls(cmd.Context(), arg)
 		if err != nil {
 			return err
 		}

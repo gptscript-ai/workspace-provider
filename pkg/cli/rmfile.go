@@ -20,10 +20,10 @@ func newRmFile(root *workspaceProvider) *cobra.Command {
 	return c
 }
 
-func (r *rmFile) Run(_ *cobra.Command, args []string) error {
+func (r *rmFile) Run(cmd *cobra.Command, args []string) error {
 	workspaceID := args[0]
 	for _, arg := range args[1:] {
-		if err := r.root.client.DeleteFile(workspaceID, arg); err != nil {
+		if err := r.root.client.DeleteFile(cmd.Context(), workspaceID, arg); err != nil {
 			return err
 		}
 

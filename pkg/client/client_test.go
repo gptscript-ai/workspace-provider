@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -29,7 +30,7 @@ func TestProviders(t *testing.T) {
 }
 
 func TestCreateAndRmDirectoryProvider(t *testing.T) {
-	id, err := c.Create(DirectoryProvider)
+	id, err := c.Create(context.Background(), DirectoryProvider)
 	if err != nil {
 		t.Errorf("error creating workspace: %v", err)
 	}
@@ -43,7 +44,7 @@ func TestCreateAndRmDirectoryProvider(t *testing.T) {
 		t.Errorf("error when checking if directory exists: %v", err)
 	}
 
-	if err = c.Rm(id); err != nil {
+	if err = c.Rm(context.Background(), id); err != nil {
 		t.Errorf("unexpected error when removing workspace: %v", err)
 	}
 
@@ -54,19 +55,19 @@ func TestCreateAndRmDirectoryProvider(t *testing.T) {
 }
 
 func TestCreateAndRmDirectoryProviderFromProvider(t *testing.T) {
-	parentID, err := c.Create(DirectoryProvider)
+	parentID, err := c.Create(context.Background(), DirectoryProvider)
 	if err != nil {
 		t.Errorf("error creating workspace: %v", err)
 	}
 
 	t.Cleanup(func() {
-		if err := c.Rm(parentID); err != nil {
+		if err := c.Rm(context.Background(), parentID); err != nil {
 			t.Errorf("unexpected error when removing parent workspace: %v", err)
 		}
 	})
 
 	// Put a file in the parent workspace
-	file, err := c.WriteFile(parentID, "test.txt")
+	file, err := c.WriteFile(context.Background(), parentID, "test.txt")
 	if err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
@@ -80,13 +81,13 @@ func TestCreateAndRmDirectoryProviderFromProvider(t *testing.T) {
 		t.Errorf("error closing file: %v", err)
 	}
 
-	id, err := c.Create(DirectoryProvider, parentID)
+	id, err := c.Create(context.Background(), DirectoryProvider, parentID)
 	if err != nil {
 		t.Errorf("error creating workspace: %v", err)
 	}
 
 	// Ensure the file was copied over
-	files, err := c.Ls(id)
+	files, err := c.Ls(context.Background(), id)
 	if err != nil {
 		t.Errorf("unexpected error when listing files: %v", err)
 	}
@@ -100,7 +101,7 @@ func TestCreateAndRmDirectoryProviderFromProvider(t *testing.T) {
 	}
 
 	// Read the file to ensure it was copied over
-	readFile, err := c.OpenFile(id, "test.txt")
+	readFile, err := c.OpenFile(context.Background(), id, "test.txt")
 	if err != nil {
 		t.Errorf("unexpected error when reading file: %v", err)
 	}
@@ -118,25 +119,25 @@ func TestCreateAndRmDirectoryProviderFromProvider(t *testing.T) {
 		t.Errorf("error closing file: %v", err)
 	}
 
-	if err = c.Rm(id); err != nil {
+	if err = c.Rm(context.Background(), id); err != nil {
 		t.Errorf("unexpected error when removing workspace: %v", err)
 	}
 }
 
 func TestWriteAndDeleteFileDirectoryProvider(t *testing.T) {
-	id, err := c.Create(DirectoryProvider)
+	id, err := c.Create(context.Background(), DirectoryProvider)
 	if err != nil {
 		t.Errorf("error creating workspace: %v", err)
 	}
 
 	t.Cleanup(func() {
-		if err := c.Rm(id); err != nil {
+		if err := c.Rm(context.Background(), id); err != nil {
 			t.Errorf("unexpected error when removing parent workspace: %v", err)
 		}
 	})
 
 	// Put a file in the parent workspace
-	file, err := c.WriteFile(id, "test.txt")
+	file, err := c.WriteFile(context.Background(), id, "test.txt")
 	if err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
@@ -156,7 +157,7 @@ func TestWriteAndDeleteFileDirectoryProvider(t *testing.T) {
 	}
 
 	// Read the file to ensure it was copied over
-	readFile, err := c.OpenFile(id, "test.txt")
+	readFile, err := c.OpenFile(context.Background(), id, "test.txt")
 	if err != nil {
 		t.Errorf("unexpected error when reading file: %v", err)
 	}
@@ -175,7 +176,7 @@ func TestWriteAndDeleteFileDirectoryProvider(t *testing.T) {
 	}
 
 	// Delete the file
-	if err = c.DeleteFile(id, "test.txt"); err != nil {
+	if err = c.DeleteFile(context.Background(), id, "test.txt"); err != nil {
 		t.Errorf("unexpected error when deleting file: %v", err)
 	}
 

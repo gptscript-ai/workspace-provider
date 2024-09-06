@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -22,16 +23,16 @@ func TestMain(m *testing.M) {
 	var err error
 
 	directoryFactory = newDirectory("")
-	testingWorkspaceID, err = directoryFactory.Create()
+	testingWorkspaceID, err = directoryFactory.Create(context.Background())
 	if err != nil {
 		panic(err)
 	}
 
-	directoryProvider = directoryFactory.New(testingWorkspaceID)
+	directoryProvider = directoryFactory.New(context.Background(), testingWorkspaceID)
 
 	exitCode := m.Run()
 
-	if err = directoryFactory.Rm(testingWorkspaceID); err != nil {
+	if err = directoryFactory.Rm(context.Background(), testingWorkspaceID); err != nil {
 		panic(err)
 	}
 
@@ -39,7 +40,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestCreateAndRm(t *testing.T) {
-	id, err := directoryFactory.Create()
+	id, err := directoryFactory.Create(context.Background())
 	if err != nil {
 		t.Errorf("error creating workspace: %v", err)
 	}
@@ -53,7 +54,7 @@ func TestCreateAndRm(t *testing.T) {
 		t.Errorf("error when checking if directory exists: %v", err)
 	}
 
-	if err = directoryFactory.Rm(id); err != nil {
+	if err = directoryFactory.Rm(context.Background(), id); err != nil {
 		t.Errorf("unexpected error when removing workspace: %v", err)
 	}
 
@@ -65,7 +66,7 @@ func TestCreateAndRm(t *testing.T) {
 
 func TestWriteAndDeleteFileInDirectory(t *testing.T) {
 	// Copy a file into the workspace
-	file, err := directoryProvider.WriteFile("test.txt")
+	file, err := directoryProvider.WriteFile(context.Background(), "test.txt")
 	if err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
@@ -85,7 +86,7 @@ func TestWriteAndDeleteFileInDirectory(t *testing.T) {
 	}
 
 	// Delete the file
-	if err = directoryProvider.DeleteFile("test.txt"); err != nil {
+	if err = directoryProvider.DeleteFile(context.Background(), "test.txt"); err != nil {
 		t.Errorf("unexpected error when deleting file: %v", err)
 	}
 
@@ -96,7 +97,7 @@ func TestWriteAndDeleteFileInDirectory(t *testing.T) {
 }
 
 func TestFileRead(t *testing.T) {
-	writeFile, err := directoryProvider.WriteFile("test.txt")
+	writeFile, err := directoryProvider.WriteFile(context.Background(), "test.txt")
 	if err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
@@ -110,7 +111,7 @@ func TestFileRead(t *testing.T) {
 		t.Errorf("error closing file: %v", err)
 	}
 
-	readFile, err := directoryProvider.OpenFile("test.txt")
+	readFile, err := directoryProvider.OpenFile(context.Background(), "test.txt")
 	if err != nil {
 		t.Errorf("unexpected error when reading file: %v", err)
 	}
@@ -129,7 +130,7 @@ func TestFileRead(t *testing.T) {
 	}
 
 	// Delete the file
-	if err = directoryProvider.DeleteFile("test.txt"); err != nil {
+	if err = directoryProvider.DeleteFile(context.Background(), "test.txt"); err != nil {
 		t.Errorf("unexpected error when deleting file: %v", err)
 	}
 }
@@ -138,7 +139,7 @@ func TestLs(t *testing.T) {
 	// Write a bunch of files to the directory. They can be blank
 	for i := range 7 {
 		fileName := fmt.Sprintf("test%d.txt", i)
-		writeFile, err := directoryProvider.WriteFile(fileName)
+		writeFile, err := directoryProvider.WriteFile(context.Background(), fileName)
 		if err != nil {
 			t.Fatalf("error getting file to write: %v", err)
 		}
@@ -149,14 +150,14 @@ func TestLs(t *testing.T) {
 
 		// deferring here is fine because these files shouldn't be deleted until the end of the test
 		defer func(directoryProvider workspaceClient, s string) {
-			err := directoryProvider.DeleteFile(s)
+			err := directoryProvider.DeleteFile(context.Background(), s)
 			if err != nil {
 				t.Errorf("unexpected error when deleting file %s: %v", fileName, err)
 			}
 		}(directoryProvider, fileName)
 	}
 
-	contents, err := directoryProvider.Ls()
+	contents, err := directoryProvider.Ls(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error when listing files: %v", err)
 	}

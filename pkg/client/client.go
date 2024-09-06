@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"iter"
@@ -17,16 +18,16 @@ const (
 )
 
 type workspaceFactory interface {
-	New(string) workspaceClient
-	Create() (string, error)
-	Rm(string) error
+	New(context.Context, string) workspaceClient
+	Create(context.Context) (string, error)
+	Rm(context.Context, string) error
 }
 
 type workspaceClient interface {
-	Ls() ([]string, error)
-	DeleteFile(string) error
-	OpenFile(string) (io.ReadCloser, error)
-	WriteFile(string) (io.WriteCloser, error)
+	Ls(context.Context) ([]string, error)
+	DeleteFile(context.Context, string) error
+	OpenFile(context.Context, string) (io.ReadCloser, error)
+	WriteFile(context.Context, string) (io.WriteCloser, error)
 }
 
 type Options struct {
@@ -71,25 +72,25 @@ func (c *Client) Providers() iter.Seq[string] {
 	return maps.Keys(c.factories)
 }
 
-func (c *Client) Create(provider string, fromWorkspaces ...string) (string, error) {
+func (c *Client) Create(ctx context.Context, provider string, fromWorkspaces ...string) (string, error) {
 	factory, err := c.getFactory(provider)
 	if err != nil {
 		return "", err
 	}
 
-	id, err := factory.Create()
+	id, err := factory.Create(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	destClient := factory.New(id)
+	destClient := factory.New(ctx, id)
 
 	for _, fromWorkspace := range fromWorkspaces {
-		sourceClient, err := c.getClient(fromWorkspace)
+		sourceClient, err := c.getClient(ctx, fromWorkspace)
 		if err != nil {
 			return "", err
 		}
-		if err = cp(sourceClient, destClient); err != nil {
+		if err = cp(ctx, sourceClient, destClient); err != nil {
 			return "", err
 		}
 	}
@@ -97,7 +98,7 @@ func (c *Client) Create(provider string, fromWorkspaces ...string) (string, erro
 	return id, nil
 }
 
-func (c *Client) Rm(id string) error {
+func (c *Client) Rm(ctx context.Context, id string) error {
 	provider, _, ok := strings.Cut(id, "://")
 	if !ok {
 		return fmt.Errorf("invalid workspace id: %s", id)
@@ -108,46 +109,46 @@ func (c *Client) Rm(id string) error {
 		return err
 	}
 
-	return f.Rm(id)
+	return f.Rm(ctx, id)
 }
 
-func (c *Client) Ls(id string) ([]string, error) {
-	wc, err := c.getClient(id)
+func (c *Client) Ls(ctx context.Context, id string) ([]string, error) {
+	wc, err := c.getClient(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return wc.Ls()
+	return wc.Ls(ctx)
 }
 
-func (c *Client) DeleteFile(id, file string) error {
-	wc, err := c.getClient(id)
+func (c *Client) DeleteFile(ctx context.Context, id, file string) error {
+	wc, err := c.getClient(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	return wc.DeleteFile(file)
+	return wc.DeleteFile(ctx, file)
 }
 
-func (c *Client) OpenFile(id, fileName string) (io.ReadCloser, error) {
-	wc, err := c.getClient(id)
+func (c *Client) OpenFile(ctx context.Context, id, fileName string) (io.ReadCloser, error) {
+	wc, err := c.getClient(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return wc.OpenFile(fileName)
+	return wc.OpenFile(ctx, fileName)
 }
 
-func (c *Client) WriteFile(id, fileName string) (io.WriteCloser, error) {
-	wc, err := c.getClient(id)
+func (c *Client) WriteFile(ctx context.Context, id, fileName string) (io.WriteCloser, error) {
+	wc, err := c.getClient(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return wc.WriteFile(fileName)
+	return wc.WriteFile(ctx, fileName)
 }
 
-func (c *Client) getClient(id string) (workspaceClient, error) {
+func (c *Client) getClient(ctx context.Context, id string) (workspaceClient, error) {
 	provider, _, ok := strings.Cut(id, "://")
 	if !ok {
 		return nil, fmt.Errorf("invalid workspace id: %s", id)
@@ -158,7 +159,7 @@ func (c *Client) getClient(id string) (workspaceClient, error) {
 		return nil, err
 	}
 
-	return f.New(id), nil
+	return f.New(ctx, id), nil
 }
 
 func (c *Client) getFactory(provider string) (workspaceFactory, error) {
@@ -170,14 +171,14 @@ func (c *Client) getFactory(provider string) (workspaceFactory, error) {
 	return factory, nil
 }
 
-func cp(source, dest workspaceClient) error {
-	contents, err := source.Ls()
+func cp(ctx context.Context, source, dest workspaceClient) error {
+	contents, err := source.Ls(ctx)
 	if err != nil {
 		return err
 	}
 
 	for _, entry := range contents {
-		if err = cpFile(entry, source, dest); err != nil {
+		if err = cpFile(ctx, entry, source, dest); err != nil {
 			return err
 		}
 	}
@@ -185,14 +186,14 @@ func cp(source, dest workspaceClient) error {
 	return nil
 }
 
-func cpFile(entry string, source, dest workspaceClient) error {
-	sourceFile, err := source.OpenFile(entry)
+func cpFile(ctx context.Context, entry string, source, dest workspaceClient) error {
+	sourceFile, err := source.OpenFile(ctx, entry)
 	if err != nil {
 		return err
 	}
 	defer sourceFile.Close()
 
-	destFile, err := dest.WriteFile(entry)
+	destFile, err := dest.WriteFile(ctx, entry)
 	if err != nil {
 		return err
 	}

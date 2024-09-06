@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -23,7 +24,7 @@ type directory struct {
 	dataHome string
 }
 
-func (d *directory) New(id string) workspaceClient {
+func (d *directory) New(_ context.Context, id string) workspaceClient {
 	id = strings.TrimPrefix(id, DirectoryProvider+"://")
 	if !filepath.IsAbs(id) {
 		id = filepath.Join(d.dataHome, id)
@@ -33,12 +34,12 @@ func (d *directory) New(id string) workspaceClient {
 	}
 }
 
-func (d *directory) Create() (string, error) {
+func (d *directory) Create(context.Context) (string, error) {
 	dir := filepath.Join(d.dataHome, uuid.NewString())
 	return DirectoryProvider + "://" + dir, os.MkdirAll(dir, 0o755)
 }
 
-func (d *directory) Rm(id string) error {
+func (d *directory) Rm(_ context.Context, id string) error {
 	id = strings.TrimPrefix(id, DirectoryProvider+"://")
 	if !filepath.IsAbs(id) {
 		id = filepath.Join(d.dataHome, id)
@@ -46,15 +47,15 @@ func (d *directory) Rm(id string) error {
 	return os.RemoveAll(id)
 }
 
-func (d *directory) DeleteFile(file string) error {
+func (d *directory) DeleteFile(_ context.Context, file string) error {
 	return os.Remove(filepath.Join(d.dataHome, file))
 }
 
-func (d *directory) OpenFile(file string) (io.ReadCloser, error) {
+func (d *directory) OpenFile(_ context.Context, file string) (io.ReadCloser, error) {
 	return os.Open(filepath.Join(d.dataHome, file))
 }
 
-func (d *directory) WriteFile(fileName string) (io.WriteCloser, error) {
+func (d *directory) WriteFile(_ context.Context, fileName string) (io.WriteCloser, error) {
 	file, err := os.OpenFile(filepath.Join(d.dataHome, fileName), os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return nil, err
@@ -63,7 +64,7 @@ func (d *directory) WriteFile(fileName string) (io.WriteCloser, error) {
 	return file, nil
 }
 
-func (d *directory) Ls() ([]string, error) {
+func (d *directory) Ls(context.Context) ([]string, error) {
 	entries, err := os.ReadDir(d.dataHome)
 	if err != nil {
 		if os.IsNotExist(err) {

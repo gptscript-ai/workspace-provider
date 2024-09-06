@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -22,10 +23,10 @@ func newCpFile(root *workspaceProvider) *cobra.Command {
 	return c
 }
 
-func (c *cpFile) Run(_ *cobra.Command, args []string) error {
+func (c *cpFile) Run(cmd *cobra.Command, args []string) error {
 	workspaceID := args[0]
 	for _, arg := range args[1:] {
-		if err := c.copyFile(workspaceID, arg); err != nil {
+		if err := c.copyFile(cmd.Context(), workspaceID, arg); err != nil {
 			return err
 		}
 	}
@@ -33,14 +34,14 @@ func (c *cpFile) Run(_ *cobra.Command, args []string) error {
 	return nil
 }
 
-func (c *cpFile) copyFile(workspaceID, src string) error {
+func (c *cpFile) copyFile(ctx context.Context, workspaceID, src string) error {
 	source, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 	defer source.Close()
 
-	file, err := c.root.client.WriteFile(workspaceID, filepath.Base(src))
+	file, err := c.root.client.WriteFile(ctx, workspaceID, filepath.Base(src))
 	if err != nil {
 		return err
 	}

@@ -20,9 +20,9 @@ func newRm(root *workspaceProvider) *cobra.Command {
 	return c
 }
 
-func (r *rm) Run(_ *cobra.Command, args []string) error {
+func (r *rm) Run(cmd *cobra.Command, args []string) error {
 	for _, arg := range args {
-		if err := r.root.client.Rm(arg); err != nil {
+		if err := r.root.client.Rm(cmd.Context(), arg); err != nil {
 			return err
 		}
 

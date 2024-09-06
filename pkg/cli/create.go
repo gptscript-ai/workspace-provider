@@ -18,8 +18,8 @@ func newCreate(root *workspaceProvider) *cobra.Command {
 	return c
 }
 
-func (c *create) Run(_ *cobra.Command, args []string) error {
-	workspace, err := c.root.client.Create(c.root.Provider, args...)
+func (c *create) Run(cmd *cobra.Command, args []string) error {
+	workspace, err := c.root.client.Create(cmd.Context(), c.root.Provider, args...)
 	if err != nil {
 		return err
 	}
