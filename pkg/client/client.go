@@ -15,7 +15,6 @@ type workspaceFactory interface {
 }
 
 type workspaceClient interface {
-	Cp(workspaceClient) error
 	Ls() ([]string, error)
 	DeleteFile(string) error
 	OpenFile(string) (io.ReadCloser, error)
@@ -57,7 +56,7 @@ func (c *Client) Create(provider string, fromWorkspaces ...string) (string, erro
 		if err != nil {
 			return "", err
 		}
-		if err = destClient.Cp(sourceClient); err != nil {
+		if err = cp(sourceClient, destClient); err != nil {
 			return "", err
 		}
 	}
@@ -136,4 +135,40 @@ func (c *Client) getFactory(provider string) (workspaceFactory, error) {
 	}
 
 	return factory, nil
+}
+
+func cp(source, dest workspaceClient) error {
+	contents, err := source.Ls()
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range contents {
+		if err = cpFile(entry, source, dest); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func cpFile(entry string, source, dest workspaceClient) error {
+	sourceFile, err := source.OpenFile(entry)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destFile, err := dest.WriteFile(entry)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, sourceFile)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

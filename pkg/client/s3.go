@@ -30,11 +30,6 @@ func (s *s3) Rm(id string) error {
 	panic("implement me")
 }
 
-func (s *s3) Cp(workspaceClient workspaceClient) error {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (s *s3) Ls() ([]string, error) {
 	//TODO implement me
 	panic("implement me")

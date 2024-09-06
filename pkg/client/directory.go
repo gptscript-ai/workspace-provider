@@ -76,29 +76,3 @@ func (d *directory) Ls() ([]string, error) {
 
 	return contents, nil
 }
-
-func (d *directory) Cp(source workspaceClient) error {
-	contents, err := source.Ls()
-	if err != nil {
-		return err
-	}
-
-	for _, entry := range contents {
-		sourceFile, err := source.OpenFile(entry)
-		if err != nil {
-			return err
-		}
-
-		destFile, err := d.WriteFile(entry)
-		if err != nil {
-			return err
-		}
-
-		_, err = io.Copy(destFile, sourceFile)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
