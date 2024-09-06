@@ -6,6 +6,9 @@ import (
 	"iter"
 	"maps"
 	"net/url"
+	"path/filepath"
+
+	"github.com/adrg/xdg"
 )
 
 type workspaceFactory interface {
@@ -21,11 +24,36 @@ type workspaceClient interface {
 	WriteFile(string) (io.WriteCloser, error)
 }
 
-func New(directoryDataHome, s3DataHome string) *Client {
+type Options struct {
+	DirectoryDataHome string
+	S3DataHome        string
+}
+
+func complete(opts ...Options) Options {
+	var opt Options
+
+	for _, o := range opts {
+		if o.DirectoryDataHome != "" {
+			opt.DirectoryDataHome = o.DirectoryDataHome
+		}
+		if o.S3DataHome != "" {
+			opt.S3DataHome = o.S3DataHome
+		}
+	}
+
+	if opt.DirectoryDataHome == "" {
+		opt.DirectoryDataHome = filepath.Join(xdg.DataHome, "workspace-provider")
+	}
+
+	return opt
+}
+
+func New(opts ...Options) *Client {
+	opt := complete(opts...)
 	return &Client{
 		factories: map[string]workspaceFactory{
-			"directory": newDirectory(directoryDataHome),
-			"s3":        newS3(s3DataHome),
+			"directory": newDirectory(opt.DirectoryDataHome),
+			"s3":        newS3(opt.S3DataHome),
 		},
 	}
 }

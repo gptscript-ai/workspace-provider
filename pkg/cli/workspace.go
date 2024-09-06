@@ -45,7 +45,7 @@ func (w *workspaceProvider) PersistentPre(*cobra.Command, []string) error {
 		return fmt.Errorf("invalid workspace provider: %s", w.Provider)
 	}
 
-	w.client = client.New(w.DataHome, w.DataHome)
+	w.client = client.New(client.Options{DirectoryDataHome: w.DataHome})
 
 	return nil
 }

@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-var c = New("", "")
+var c = New()
 
 func TestProviders(t *testing.T) {
 	providers := c.Providers()
