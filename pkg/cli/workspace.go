@@ -36,8 +36,8 @@ func (w *workspaceProvider) Run(cmd *cobra.Command, _ []string) error {
 
 func (w *workspaceProvider) PersistentPre(*cobra.Command, []string) error {
 	switch w.Provider {
-	case "directory":
-	case "s3":
+	case client.DirectoryProvider:
+	case client.S3Provider:
 		if w.DataHome == "" {
 			return fmt.Errorf("s3 provider requires a bucket name")
 		}

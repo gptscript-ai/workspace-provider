@@ -16,7 +16,7 @@ func TestProviders(t *testing.T) {
 
 	providerCount := 0
 	for p := range providers {
-		if p != "directory" && p != "s3" {
+		if p != DirectoryProvider && p != S3Provider {
 			t.Errorf("invalid provider: %s", p)
 		}
 
@@ -29,17 +29,17 @@ func TestProviders(t *testing.T) {
 }
 
 func TestCreateAndRmDirectoryProvider(t *testing.T) {
-	id, err := c.Create("directory")
+	id, err := c.Create(DirectoryProvider)
 	if err != nil {
 		t.Errorf("error creating workspace: %v", err)
 	}
 
-	if !strings.HasPrefix(id, "directory://") {
+	if !strings.HasPrefix(id, DirectoryProvider+"://") {
 		t.Errorf("unexpected id: %s", id)
 	}
 
 	// Ensure the directory actually exists
-	if _, err = os.Stat(strings.TrimPrefix(id, "directory://")); err != nil {
+	if _, err = os.Stat(strings.TrimPrefix(id, DirectoryProvider+"://")); err != nil {
 		t.Errorf("error when checking if directory exists: %v", err)
 	}
 
@@ -48,13 +48,13 @@ func TestCreateAndRmDirectoryProvider(t *testing.T) {
 	}
 
 	// Ensure the directory actually exists
-	if _, err = os.Stat(strings.TrimPrefix(id, "directory://")); !errors.Is(err, os.ErrNotExist) {
+	if _, err = os.Stat(strings.TrimPrefix(id, DirectoryProvider+"://")); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("directory should not exist after removing workspace: %v", err)
 	}
 }
 
 func TestCreateAndRmDirectoryProviderFromProvider(t *testing.T) {
-	parentID, err := c.Create("directory")
+	parentID, err := c.Create(DirectoryProvider)
 	if err != nil {
 		t.Errorf("error creating workspace: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestCreateAndRmDirectoryProviderFromProvider(t *testing.T) {
 		t.Errorf("error closing file: %v", err)
 	}
 
-	id, err := c.Create("directory", parentID)
+	id, err := c.Create(DirectoryProvider, parentID)
 	if err != nil {
 		t.Errorf("error creating workspace: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestCreateAndRmDirectoryProviderFromProvider(t *testing.T) {
 }
 
 func TestWriteAndDeleteFileDirectoryProvider(t *testing.T) {
-	id, err := c.Create("directory")
+	id, err := c.Create(DirectoryProvider)
 	if err != nil {
 		t.Errorf("error creating workspace: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestWriteAndDeleteFileDirectoryProvider(t *testing.T) {
 	}
 
 	// Ensure the file actually exists
-	if _, err = os.Stat(filepath.Join(strings.TrimPrefix(id, "directory://"), "test.txt")); err != nil {
+	if _, err = os.Stat(filepath.Join(strings.TrimPrefix(id, DirectoryProvider+"://"), "test.txt")); err != nil {
 		t.Errorf("error when checking if file exists: %v", err)
 	}
 
@@ -180,7 +180,7 @@ func TestWriteAndDeleteFileDirectoryProvider(t *testing.T) {
 	}
 
 	// Ensure the file no longer exists
-	if _, err = os.Stat(filepath.Join(strings.TrimPrefix(id, "directory://"), "test.txt")); !errors.Is(err, os.ErrNotExist) {
+	if _, err = os.Stat(filepath.Join(strings.TrimPrefix(id, DirectoryProvider+"://"), "test.txt")); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("file should not exist after deleting: %v", err)
 	}
 }

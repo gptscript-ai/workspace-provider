@@ -24,7 +24,7 @@ type directory struct {
 }
 
 func (d *directory) New(id string) workspaceClient {
-	id = strings.TrimPrefix(id, "directory://")
+	id = strings.TrimPrefix(id, DirectoryProvider+"://")
 	if !filepath.IsAbs(id) {
 		id = filepath.Join(d.dataHome, id)
 	}
@@ -35,11 +35,11 @@ func (d *directory) New(id string) workspaceClient {
 
 func (d *directory) Create() (string, error) {
 	dir := filepath.Join(d.dataHome, uuid.NewString())
-	return "directory://" + dir, os.MkdirAll(dir, 0o755)
+	return DirectoryProvider + "://" + dir, os.MkdirAll(dir, 0o755)
 }
 
 func (d *directory) Rm(id string) error {
-	id = strings.TrimPrefix(id, "directory://")
+	id = strings.TrimPrefix(id, DirectoryProvider+"://")
 	if !filepath.IsAbs(id) {
 		id = filepath.Join(d.dataHome, id)
 	}
@@ -67,7 +67,7 @@ func (d *directory) Ls() ([]string, error) {
 	entries, err := os.ReadDir(d.dataHome)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, &WorkspaceNotFoundError{id: "directory://" + d.dataHome}
+			return nil, &WorkspaceNotFoundError{id: DirectoryProvider + "://" + d.dataHome}
 		}
 		return nil, err
 	}

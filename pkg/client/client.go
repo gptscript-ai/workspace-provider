@@ -11,6 +11,11 @@ import (
 	"github.com/adrg/xdg"
 )
 
+const (
+	DirectoryProvider = "directory"
+	S3Provider        = "s3"
+)
+
 type workspaceFactory interface {
 	New(string) workspaceClient
 	Create() (string, error)
@@ -52,8 +57,8 @@ func New(opts ...Options) *Client {
 	opt := complete(opts...)
 	return &Client{
 		factories: map[string]workspaceFactory{
-			"directory": newDirectory(opt.DirectoryDataHome),
-			"s3":        newS3(opt.S3DataHome),
+			DirectoryProvider: newDirectory(opt.DirectoryDataHome),
+			S3Provider:        newS3(opt.S3DataHome),
 		},
 	}
 }
