@@ -6,10 +6,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/adrg/xdg"
 	"github.com/google/uuid"
 )
 
 func newDirectory(dataHome string) workspaceFactory {
+	if dataHome == "" {
+		dataHome = filepath.Join(xdg.DataHome, "workspace-provider")
+	}
 	return &directory{
 		dataHome: dataHome,
 	}

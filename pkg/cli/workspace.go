@@ -2,9 +2,7 @@ package cli
 
 import (
 	"fmt"
-	"path/filepath"
 
-	"github.com/adrg/xdg"
 	"github.com/gptscript-ai/cmd"
 	"github.com/spf13/cobra"
 	"github.com/thedadams/workspace-provider/pkg/client"
@@ -39,9 +37,6 @@ func (w *workspaceProvider) Run(cmd *cobra.Command, _ []string) error {
 func (w *workspaceProvider) PersistentPre(*cobra.Command, []string) error {
 	switch w.Provider {
 	case "directory":
-		if w.DataHome == "" {
-			w.DataHome = filepath.Join(xdg.DataHome, "workspace-provider")
-		}
 	case "s3":
 		if w.DataHome == "" {
 			return fmt.Errorf("s3 provider requires a bucket name")

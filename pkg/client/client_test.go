@@ -7,11 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/adrg/xdg"
 )
 
-var c = New("", filepath.Join(xdg.DataHome, "workspace-provider"))
+var c = New("", "")
 
 func TestProviders(t *testing.T) {
 	providers := c.Providers()

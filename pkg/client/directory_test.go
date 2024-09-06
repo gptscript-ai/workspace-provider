@@ -10,8 +10,6 @@ import (
 	"sort"
 	"strings"
 	"testing"
-
-	"github.com/adrg/xdg"
 )
 
 var (
@@ -23,7 +21,7 @@ var (
 func TestMain(m *testing.M) {
 	var err error
 
-	directoryFactory = newDirectory(filepath.Join(xdg.DataHome, "workspace-provider"))
+	directoryFactory = newDirectory("")
 	testingWorkspaceID, err = directoryFactory.Create()
 	if err != nil {
 		panic(err)
