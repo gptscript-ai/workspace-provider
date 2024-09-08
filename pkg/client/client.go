@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"iter"
 	"maps"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/adrg/xdg"
@@ -68,8 +68,8 @@ type Client struct {
 	factories map[string]workspaceFactory
 }
 
-func (c *Client) Providers() iter.Seq[string] {
-	return maps.Keys(c.factories)
+func (c *Client) Providers() []string {
+	return slices.Collect(maps.Keys(c.factories))
 }
 
 func (c *Client) Create(ctx context.Context, provider string, fromWorkspaces ...string) (string, error) {

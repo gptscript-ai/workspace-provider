@@ -16,7 +16,7 @@ func TestProviders(t *testing.T) {
 	providers := c.Providers()
 
 	providerCount := 0
-	for p := range providers {
+	for _, p := range providers {
 		if p != DirectoryProvider && p != S3Provider {
 			t.Errorf("invalid provider: %s", p)
 		}
