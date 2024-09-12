@@ -26,27 +26,27 @@ func (s *s3) Create(context.Context) (string, error) {
 	panic("implement me")
 }
 
-func (s *s3) Rm(_ context.Context, id string) error {
+func (s *s3) Rm(context.Context, string) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (s *s3) Ls(context.Context) ([]string, error) {
+func (s *s3) Ls(context.Context, LsOptions) ([]string, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (s *s3) DeleteFile(_ context.Context, file string) error {
+func (s *s3) DeleteFile(context.Context, string) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (s *s3) OpenFile(_ context.Context, file string) (io.ReadCloser, error) {
+func (s *s3) OpenFile(context.Context, string) (io.ReadCloser, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (s *s3) WriteFile(_ context.Context, file string) (io.WriteCloser, error) {
+func (s *s3) WriteFile(context.Context, string, WriteOptions) (io.WriteCloser, error) {
 	//TODO implement me
 	panic("implement me")
 }

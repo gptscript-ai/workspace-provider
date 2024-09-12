@@ -24,10 +24,10 @@ type workspaceFactory interface {
 }
 
 type workspaceClient interface {
-	Ls(context.Context) ([]string, error)
+	Ls(context.Context, LsOptions) ([]string, error)
 	DeleteFile(context.Context, string) error
 	OpenFile(context.Context, string) (io.ReadCloser, error)
-	WriteFile(context.Context, string) (io.WriteCloser, error)
+	WriteFile(context.Context, string, WriteOptions) (io.WriteCloser, error)
 }
 
 type Options struct {
@@ -112,13 +112,21 @@ func (c *Client) Rm(ctx context.Context, id string) error {
 	return f.Rm(ctx, id)
 }
 
-func (c *Client) Ls(ctx context.Context, id string) ([]string, error) {
+func (c *Client) Ls(ctx context.Context, id string, opts ...LsOptions) ([]string, error) {
 	wc, err := c.getClient(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return wc.Ls(ctx)
+	opt := LsOptions{}
+	for _, o := range opts {
+		if o.SubDir != "" {
+			opt.SubDir = o.SubDir
+		}
+		opt.NonRecursive = opt.NonRecursive || o.NonRecursive
+	}
+
+	return wc.Ls(ctx, opt)
 }
 
 func (c *Client) DeleteFile(ctx context.Context, id, file string) error {
@@ -139,13 +147,20 @@ func (c *Client) OpenFile(ctx context.Context, id, fileName string) (io.ReadClos
 	return wc.OpenFile(ctx, fileName)
 }
 
-func (c *Client) WriteFile(ctx context.Context, id, fileName string) (io.WriteCloser, error) {
+func (c *Client) WriteFile(ctx context.Context, id, fileName string, opts ...WriteOptions) (io.WriteCloser, error) {
 	wc, err := c.getClient(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return wc.WriteFile(ctx, fileName)
+	opt := WriteOptions{}
+	for _, o := range opts {
+		opt.CreateDirs = opt.CreateDirs || o.CreateDirs
+		opt.WithoutCreate = opt.WithoutCreate || o.WithoutCreate
+		opt.MustNotExist = opt.MustNotExist || o.MustNotExist
+	}
+
+	return wc.WriteFile(ctx, fileName, opt)
 }
 
 func (c *Client) getClient(ctx context.Context, id string) (workspaceClient, error) {
@@ -172,7 +187,7 @@ func (c *Client) getFactory(provider string) (workspaceFactory, error) {
 }
 
 func cp(ctx context.Context, source, dest workspaceClient) error {
-	contents, err := source.Ls(ctx)
+	contents, err := source.Ls(ctx, LsOptions{})
 	if err != nil {
 		return err
 	}
@@ -193,7 +208,7 @@ func cpFile(ctx context.Context, entry string, source, dest workspaceClient) err
 	}
 	defer sourceFile.Close()
 
-	destFile, err := dest.WriteFile(ctx, entry)
+	destFile, err := dest.WriteFile(ctx, entry, WriteOptions{CreateDirs: true})
 	if err != nil {
 		return err
 	}

@@ -15,17 +15,14 @@ var c = New()
 func TestProviders(t *testing.T) {
 	providers := c.Providers()
 
-	providerCount := 0
 	for _, p := range providers {
 		if p != DirectoryProvider && p != S3Provider {
 			t.Errorf("invalid provider: %s", p)
 		}
-
-		providerCount++
 	}
 
-	if providerCount != 2 {
-		t.Errorf("invalid provider count: %d", providerCount)
+	if len(providers) != 2 {
+		t.Errorf("unexpected number of providers: %d", len(providers))
 	}
 }
 
@@ -183,5 +180,118 @@ func TestWriteAndDeleteFileDirectoryProvider(t *testing.T) {
 	// Ensure the file no longer exists
 	if _, err = os.Stat(filepath.Join(strings.TrimPrefix(id, DirectoryProvider+"://"), "test.txt")); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("file should not exist after deleting: %v", err)
+	}
+}
+
+func TestLsOptionsCompiledCorrectly(t *testing.T) {
+	tests := []struct {
+		name     string
+		options  []LsOptions
+		expected LsOptions
+	}{
+		{
+			name:     "nothing provided",
+			expected: LsOptions{},
+		},
+		{
+			name:     "subdir provided",
+			options:  []LsOptions{{SubDir: "test"}},
+			expected: LsOptions{SubDir: "test"},
+		},
+		{
+			name:     "last subdir used",
+			options:  []LsOptions{{SubDir: "test"}, {SubDir: "test2"}},
+			expected: LsOptions{SubDir: "test2"},
+		},
+		{
+			name:     "non-recursive",
+			options:  []LsOptions{{NonRecursive: true}},
+			expected: LsOptions{NonRecursive: true},
+		},
+		{
+			name: "non-recursive order doesn't matter",
+			options: []LsOptions{
+				{NonRecursive: true},
+				{NonRecursive: false},
+			},
+			expected: LsOptions{NonRecursive: true},
+		},
+		{
+			name:     "exclude hidden",
+			options:  []LsOptions{{ExcludeHidden: true}},
+			expected: LsOptions{ExcludeHidden: true},
+		},
+		{
+			name: "exclude hidden order doesn't matter",
+			options: []LsOptions{
+				{ExcludeHidden: true},
+				{ExcludeHidden: false},
+			},
+			expected: LsOptions{ExcludeHidden: true},
+		},
+		{
+			name: "subdir and non-recursive taken from different entries",
+			options: []LsOptions{
+				{SubDir: "test", NonRecursive: true},
+				{SubDir: "taken", NonRecursive: false, ExcludeHidden: true},
+			},
+			expected: LsOptions{SubDir: "taken", NonRecursive: true, ExcludeHidden: true},
+		},
+	}
+
+	for _, test := range tests {
+		c.factories["fake"] = &fake{expectedLsOptions: test.expected}
+		_, err := c.Ls(context.Background(), "fake://", test.options...)
+		if err != nil {
+			t.Errorf("unexpected error for %q test: %v", test.name, err)
+		}
+		delete(c.factories, "fake")
+	}
+
+}
+
+func TestWriteOptionsCompiledCorrectly(t *testing.T) {
+	tests := []struct {
+		name     string
+		options  []WriteOptions
+		expected WriteOptions
+	}{
+		{
+			name:     "nothing provided",
+			expected: WriteOptions{},
+		},
+		{
+			name:     "WithoutCreate provided",
+			options:  []WriteOptions{{WithoutCreate: true}},
+			expected: WriteOptions{WithoutCreate: true},
+		},
+		{
+			name:     "MustNotExist provided",
+			options:  []WriteOptions{{MustNotExist: true}},
+			expected: WriteOptions{MustNotExist: true},
+		},
+		{
+			name:     "CreateDirs provided",
+			options:  []WriteOptions{{CreateDirs: true}},
+			expected: WriteOptions{CreateDirs: true},
+		},
+		{
+			name: "order for bools doesn't matter",
+			options: []WriteOptions{
+				{CreateDirs: true},
+				{WithoutCreate: true},
+				{MustNotExist: true},
+			},
+			expected: WriteOptions{CreateDirs: true, WithoutCreate: true, MustNotExist: true},
+		},
+	}
+
+	for _, test := range tests {
+		c.factories["fake"] = &fake{expectedWriteOptions: test.expected}
+		_, err := c.WriteFile(context.Background(), "fake://", "fake.txt", test.options...)
+		if err != nil {
+			t.Errorf("unexpected error for %q test: %v", test.name, err)
+		}
+		delete(c.factories, "fake")
 	}
 }

@@ -66,7 +66,7 @@ func TestCreateAndRm(t *testing.T) {
 
 func TestWriteAndDeleteFileInDirectory(t *testing.T) {
 	// Copy a file into the workspace
-	file, err := directoryProvider.WriteFile(context.Background(), "test.txt")
+	file, err := directoryProvider.WriteFile(context.Background(), "test.txt", WriteOptions{})
 	if err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
@@ -96,8 +96,88 @@ func TestWriteAndDeleteFileInDirectory(t *testing.T) {
 	}
 }
 
+func TestWriteAndDeleteFileInDirectoryWithSubDir(t *testing.T) {
+	// Copy a file into the workspace
+	file, err := directoryProvider.WriteFile(context.Background(), "subdir/test.txt", WriteOptions{CreateDirs: true})
+	if err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	if _, err = file.Write([]byte("test")); err != nil {
+		file.Close()
+		t.Fatalf("error writing file: %v", err)
+	}
+
+	if err = file.Close(); err != nil {
+		t.Errorf("error closing file: %v", err)
+	}
+
+	// Ensure the file actually exists
+	if _, err = os.Stat(filepath.Join(strings.TrimPrefix(testingWorkspaceID, DirectoryProvider+"://"), "subdir/test.txt")); err != nil {
+		t.Errorf("error when checking if file exists: %v", err)
+	}
+
+	// Delete the file
+	if err = directoryProvider.DeleteFile(context.Background(), "subdir/test.txt"); err != nil {
+		t.Errorf("unexpected error when deleting file: %v", err)
+	}
+
+	// Ensure the file no longer exists
+	if _, err = os.Stat(filepath.Join(strings.TrimPrefix(testingWorkspaceID, DirectoryProvider+"://"), "subdir/test.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("file should not exist after deleting: %v", err)
+	}
+
+	// Cleanup the directory
+	if err = os.Remove(filepath.Join(strings.TrimPrefix(testingWorkspaceID, DirectoryProvider+"://"), "subdir")); err != nil {
+		t.Errorf("error when removing subdir directory: %v", err)
+	}
+}
+
+func TestWriteFailsIfCreateDirsFalse(t *testing.T) {
+	_, err := directoryProvider.WriteFile(context.Background(), "subdir/test.txt", WriteOptions{})
+	if err == nil {
+		t.Errorf("expected error if creating dirs is false")
+	}
+}
+
+func TestWriteFailsWithoutCreate(t *testing.T) {
+	_, err := directoryProvider.WriteFile(context.Background(), "test.txt", WriteOptions{WithoutCreate: true})
+	if err == nil {
+		t.Errorf("expected error if file doesn't exist and using WithoutCreate")
+	}
+}
+
+func TestWriteMustNotExist(t *testing.T) {
+	// Copy a file into the workspace
+	file, err := directoryProvider.WriteFile(context.Background(), "test.txt", WriteOptions{MustNotExist: true})
+	if err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	if _, err = file.Write([]byte("test")); err != nil {
+		file.Close()
+		t.Fatalf("error writing file: %v", err)
+	}
+
+	if err = file.Close(); err != nil {
+		t.Errorf("error closing file: %v", err)
+	}
+
+	// Copy a file into the workspace
+	file, err = directoryProvider.WriteFile(context.Background(), "test.txt", WriteOptions{MustNotExist: true})
+	if err == nil {
+		file.Close()
+		t.Errorf("expected error if file already exists and using MustNotExist")
+	}
+
+	// Delete the file
+	if err = directoryProvider.DeleteFile(context.Background(), "test.txt"); err != nil {
+		t.Errorf("unexpected error when deleting file: %v", err)
+	}
+}
+
 func TestFileRead(t *testing.T) {
-	writeFile, err := directoryProvider.WriteFile(context.Background(), "test.txt")
+	writeFile, err := directoryProvider.WriteFile(context.Background(), "test.txt", WriteOptions{})
 	if err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
@@ -139,7 +219,7 @@ func TestLs(t *testing.T) {
 	// Write a bunch of files to the directory. They can be blank
 	for i := range 7 {
 		fileName := fmt.Sprintf("test%d.txt", i)
-		writeFile, err := directoryProvider.WriteFile(context.Background(), fileName)
+		writeFile, err := directoryProvider.WriteFile(context.Background(), fileName, WriteOptions{})
 		if err != nil {
 			t.Fatalf("error getting file to write: %v", err)
 		}
@@ -149,15 +229,15 @@ func TestLs(t *testing.T) {
 		}
 
 		// deferring here is fine because these files shouldn't be deleted until the end of the test
-		defer func(directoryProvider workspaceClient, s string) {
-			err := directoryProvider.DeleteFile(context.Background(), s)
+		defer func() {
+			err := directoryProvider.DeleteFile(context.Background(), fileName)
 			if err != nil {
 				t.Errorf("unexpected error when deleting file %s: %v", fileName, err)
 			}
-		}(directoryProvider, fileName)
+		}()
 	}
 
-	contents, err := directoryProvider.Ls(context.Background())
+	contents, err := directoryProvider.Ls(context.Background(), LsOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error when listing files: %v", err)
 	}
@@ -168,6 +248,212 @@ func TestLs(t *testing.T) {
 
 	sort.Strings(contents)
 	if !reflect.DeepEqual(contents, []string{"test0.txt", "test1.txt", "test2.txt", "test3.txt", "test4.txt", "test5.txt", "test6.txt"}) {
+		t.Errorf("unexpected contents: %v", contents)
+	}
+}
+
+func TestLsWithSubDirs(t *testing.T) {
+	// Write a bunch of files to the directory. They can be blank
+	for i := range 7 {
+		fileName := fmt.Sprintf("test%d.txt", i)
+		if i >= 3 {
+			fileName = fmt.Sprintf("testDir/%s", fileName)
+		}
+		writeFile, err := directoryProvider.WriteFile(context.Background(), fileName, WriteOptions{CreateDirs: true})
+		if err != nil {
+			t.Fatalf("error getting file to write: %v", err)
+		}
+
+		if err = writeFile.Close(); err != nil {
+			t.Errorf("error closing file: %v", err)
+		}
+
+		// deferring here is fine because these files shouldn't be deleted until the end of the test
+		defer func() {
+			err := directoryProvider.DeleteFile(context.Background(), fileName)
+			if err != nil {
+				t.Errorf("unexpected error when deleting file %s: %v", fileName, err)
+			}
+		}()
+	}
+
+	contents, err := directoryProvider.Ls(context.Background(), LsOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error when listing files: %v", err)
+	}
+
+	if len(contents) != 7 {
+		t.Errorf("unexpected number of files: %d", len(contents))
+	}
+
+	sort.Strings(contents)
+	if !reflect.DeepEqual(contents, []string{"test0.txt", "test1.txt", "test2.txt", "testDir/test3.txt", "testDir/test4.txt", "testDir/test5.txt", "testDir/test6.txt"}) {
+		t.Errorf("unexpected contents: %v", contents)
+	}
+}
+
+func TestLsWithSubDirsNoRecursive(t *testing.T) {
+	// Write a bunch of files to the directory. They can be blank
+	for i := range 7 {
+		fileName := fmt.Sprintf("test%d.txt", i)
+		if i >= 3 {
+			fileName = fmt.Sprintf("testDir/%s", fileName)
+		}
+		writeFile, err := directoryProvider.WriteFile(context.Background(), fileName, WriteOptions{CreateDirs: true})
+		if err != nil {
+			t.Fatalf("error getting file to write: %v", err)
+		}
+
+		if err = writeFile.Close(); err != nil {
+			t.Errorf("error closing file: %v", err)
+		}
+
+		// deferring here is fine because these files shouldn't be deleted until the end of the test
+		defer func() {
+			err := directoryProvider.DeleteFile(context.Background(), fileName)
+			if err != nil {
+				t.Errorf("unexpected error when deleting file %s: %v", fileName, err)
+			}
+		}()
+	}
+
+	contents, err := directoryProvider.Ls(context.Background(), LsOptions{NonRecursive: true})
+	if err != nil {
+		t.Fatalf("unexpected error when listing files: %v", err)
+	}
+
+	if len(contents) != 3 {
+		t.Errorf("unexpected number of files: %d", len(contents))
+	}
+
+	sort.Strings(contents)
+	if !reflect.DeepEqual(contents, []string{"test0.txt", "test1.txt", "test2.txt"}) {
+		t.Errorf("unexpected contents: %v", contents)
+	}
+}
+
+func TestLsFromSubDir(t *testing.T) {
+	// Write a bunch of files to the directory. They can be blank
+	for i := range 7 {
+		fileName := fmt.Sprintf("test%d.txt", i)
+		if i >= 3 {
+			fileName = fmt.Sprintf("testDir/%s", fileName)
+		}
+		writeFile, err := directoryProvider.WriteFile(context.Background(), fileName, WriteOptions{CreateDirs: true})
+		if err != nil {
+			t.Fatalf("error getting file to write: %v", err)
+		}
+
+		if err = writeFile.Close(); err != nil {
+			t.Errorf("error closing file: %v", err)
+		}
+
+		// deferring here is fine because these files shouldn't be deleted until the end of the test
+		defer func() {
+			err := directoryProvider.DeleteFile(context.Background(), fileName)
+			if err != nil {
+				t.Errorf("unexpected error when deleting file %s: %v", fileName, err)
+			}
+		}()
+	}
+
+	contents, err := directoryProvider.Ls(context.Background(), LsOptions{SubDir: "testDir"})
+	if err != nil {
+		t.Fatalf("unexpected error when listing files: %v", err)
+	}
+
+	if len(contents) != 4 {
+		t.Errorf("unexpected number of files: %d", len(contents))
+	}
+
+	sort.Strings(contents)
+	if !reflect.DeepEqual(contents, []string{"test3.txt", "test4.txt", "test5.txt", "test6.txt"}) {
+		t.Errorf("unexpected contents: %v", contents)
+	}
+}
+
+func TestLsWithSubDirsWithHiddenFiles(t *testing.T) {
+	// Write a bunch of files to the directory. They can be blank
+	for i := range 7 {
+		fileName := fmt.Sprintf("test%d.txt", i)
+		if i%2 == 0 {
+			fileName = "." + fileName
+		}
+		if i >= 3 {
+			fileName = fmt.Sprintf("testDir/%s", fileName)
+		}
+		writeFile, err := directoryProvider.WriteFile(context.Background(), fileName, WriteOptions{CreateDirs: true})
+		if err != nil {
+			t.Fatalf("error getting file to write: %v", err)
+		}
+
+		if err = writeFile.Close(); err != nil {
+			t.Errorf("error closing file: %v", err)
+		}
+
+		// deferring here is fine because these files shouldn't be deleted until the end of the test
+		defer func() {
+			err := directoryProvider.DeleteFile(context.Background(), fileName)
+			if err != nil {
+				t.Errorf("unexpected error when deleting file %s: %v", fileName, err)
+			}
+		}()
+	}
+
+	contents, err := directoryProvider.Ls(context.Background(), LsOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error when listing files: %v", err)
+	}
+
+	if len(contents) != 7 {
+		t.Errorf("unexpected number of files: %d", len(contents))
+	}
+
+	sort.Strings(contents)
+	if !reflect.DeepEqual(contents, []string{".test0.txt", ".test2.txt", "test1.txt", "testDir/.test4.txt", "testDir/.test6.txt", "testDir/test3.txt", "testDir/test5.txt"}) {
+		t.Errorf("unexpected contents: %v", contents)
+	}
+}
+
+func TestLsWithSubDirsExcludeHiddenFiles(t *testing.T) {
+	// Write a bunch of files to the directory. They can be blank
+	for i := range 7 {
+		fileName := fmt.Sprintf("test%d.txt", i)
+		if i%2 == 0 {
+			fileName = "." + fileName
+		}
+		if i >= 3 {
+			fileName = fmt.Sprintf("testDir/%s", fileName)
+		}
+		writeFile, err := directoryProvider.WriteFile(context.Background(), fileName, WriteOptions{CreateDirs: true})
+		if err != nil {
+			t.Fatalf("error getting file to write: %v", err)
+		}
+
+		if err = writeFile.Close(); err != nil {
+			t.Errorf("error closing file: %v", err)
+		}
+
+		// deferring here is fine because these files shouldn't be deleted until the end of the test
+		defer func() {
+			err := directoryProvider.DeleteFile(context.Background(), fileName)
+			if err != nil {
+				t.Errorf("unexpected error when deleting file %s: %v", fileName, err)
+			}
+		}()
+	}
+
+	contents, err := directoryProvider.Ls(context.Background(), LsOptions{ExcludeHidden: true})
+	if err != nil {
+		t.Fatalf("unexpected error when listing files: %v", err)
+	}
+
+	if len(contents) != 3 {
+		t.Errorf("unexpected number of files: %d", len(contents))
+	}
+
+	sort.Strings(contents)
+	if !reflect.DeepEqual(contents, []string{"test1.txt", "testDir/test3.txt", "testDir/test5.txt"}) {
 		t.Errorf("unexpected contents: %v", contents)
 	}
 }
