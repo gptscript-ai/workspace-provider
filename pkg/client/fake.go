@@ -7,10 +7,6 @@ import (
 	"io"
 )
 
-func newFake() *fake {
-	return &fake{}
-}
-
 // fake exists only to test that the correct options are being sent from the client implementation.
 type fake struct {
 	id                   string
