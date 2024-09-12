@@ -253,6 +253,13 @@ func TestLs(t *testing.T) {
 }
 
 func TestLsWithSubDirs(t *testing.T) {
+	defer func() {
+		err := directoryProvider.RmDir(context.Background(), "testDir", RmDirOptions{})
+		if err != nil {
+			t.Errorf("unexpected error when deleting file %s: %v", "testDir", err)
+		}
+	}()
+
 	// Write a bunch of files to the directory. They can be blank
 	for i := range 7 {
 		fileName := fmt.Sprintf("test%d.txt", i)
@@ -293,6 +300,13 @@ func TestLsWithSubDirs(t *testing.T) {
 }
 
 func TestLsWithSubDirsNoRecursive(t *testing.T) {
+	defer func() {
+		err := directoryProvider.RmDir(context.Background(), "testDir", RmDirOptions{})
+		if err != nil {
+			t.Errorf("unexpected error when deleting file %s: %v", "testDir", err)
+		}
+	}()
+
 	// Write a bunch of files to the directory. They can be blank
 	for i := range 7 {
 		fileName := fmt.Sprintf("test%d.txt", i)
@@ -333,6 +347,13 @@ func TestLsWithSubDirsNoRecursive(t *testing.T) {
 }
 
 func TestLsFromSubDir(t *testing.T) {
+	defer func() {
+		err := directoryProvider.RmDir(context.Background(), "testDir", RmDirOptions{})
+		if err != nil {
+			t.Errorf("unexpected error when deleting file %s: %v", "testDir", err)
+		}
+	}()
+
 	// Write a bunch of files to the directory. They can be blank
 	for i := range 7 {
 		fileName := fmt.Sprintf("test%d.txt", i)
@@ -373,6 +394,13 @@ func TestLsFromSubDir(t *testing.T) {
 }
 
 func TestLsWithSubDirsWithHiddenFiles(t *testing.T) {
+	defer func() {
+		err := directoryProvider.RmDir(context.Background(), "testDir", RmDirOptions{})
+		if err != nil {
+			t.Errorf("unexpected error when deleting file %s: %v", "testDir", err)
+		}
+	}()
+
 	// Write a bunch of files to the directory. They can be blank
 	for i := range 7 {
 		fileName := fmt.Sprintf("test%d.txt", i)
@@ -416,6 +444,13 @@ func TestLsWithSubDirsWithHiddenFiles(t *testing.T) {
 }
 
 func TestLsWithSubDirsExcludeHiddenFiles(t *testing.T) {
+	defer func() {
+		err := directoryProvider.RmDir(context.Background(), "testDir", RmDirOptions{})
+		if err != nil {
+			t.Errorf("unexpected error when deleting file %s: %v", "testDir", err)
+		}
+	}()
+
 	// Write a bunch of files to the directory. They can be blank
 	for i := range 7 {
 		fileName := fmt.Sprintf("test%d.txt", i)
@@ -455,5 +490,122 @@ func TestLsWithSubDirsExcludeHiddenFiles(t *testing.T) {
 	sort.Strings(contents)
 	if !reflect.DeepEqual(contents, []string{"test1.txt", "testDir/test3.txt", "testDir/test5.txt"}) {
 		t.Errorf("unexpected contents: %v", contents)
+	}
+}
+
+func TestMkDirRmDir(t *testing.T) {
+	err := directoryProvider.MkDir(context.Background(), "testDir", MkDirOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error when creating directory: %v", err)
+	}
+
+	// Ensure the directory is actually created
+	_, err = os.Stat(filepath.Join(strings.TrimPrefix(testingWorkspaceID, DirectoryProvider+"://"), "testDir"))
+	if err != nil {
+		t.Errorf("error when checking if directory exists: %v", err)
+	}
+
+	// Creating the directory with MustNotExist should fail
+	err = directoryProvider.MkDir(context.Background(), "testDir", MkDirOptions{MustNotExist: true})
+	var dae DirectoryAlreadyExistsError
+	if !errors.As(err, &dae) {
+		t.Fatalf("unexpected error when creating directory: %v", err)
+	}
+
+	writeFile, err := directoryProvider.WriteFile(context.Background(), filepath.Join("testDir", "test.txt"), WriteOptions{})
+	if err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	if err = writeFile.Close(); err != nil {
+		t.Errorf("error closing file: %v", err)
+	}
+
+	err = directoryProvider.RmDir(context.Background(), "testDir", RmDirOptions{NonEmpty: true})
+	var dne DirectoryNotEmptyError
+	if !errors.As(err, &dne) {
+		t.Errorf("unexpected error when removing directory: %v", err)
+	}
+
+	err = directoryProvider.RmDir(context.Background(), "testDir", RmDirOptions{})
+	if err != nil {
+		t.Errorf("unexpected error when removing directory: %v", err)
+	}
+
+	// Ensure the directory is actually deleted
+	_, err = os.Stat(filepath.Join(strings.TrimPrefix(testingWorkspaceID, DirectoryProvider+"://"), "testDir"))
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("directory should not exist after removing directory: %v", err)
+	}
+}
+
+func TestMkDirRmDirWhenEmpty(t *testing.T) {
+	err := directoryProvider.MkDir(context.Background(), "testDir", MkDirOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error when creating directory: %v", err)
+	}
+
+	// Ensure the directory is actually created
+	_, err = os.Stat(filepath.Join(strings.TrimPrefix(testingWorkspaceID, DirectoryProvider+"://"), "testDir"))
+	if err != nil {
+		t.Errorf("error when checking if directory exists: %v", err)
+	}
+
+	err = directoryProvider.RmDir(context.Background(), "testDir", RmDirOptions{NonEmpty: true})
+	if err != nil {
+		t.Errorf("unexpected error when removing directory: %v", err)
+	}
+
+	// Ensure the directory is actually deleted
+	_, err = os.Stat(filepath.Join(strings.TrimPrefix(testingWorkspaceID, DirectoryProvider+"://"), "testDir"))
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("directory should not exist after removing directory: %v", err)
+	}
+}
+
+func TestMkDirCreateDirs(t *testing.T) {
+	testDir := filepath.Join("test", "testDir")
+	err := directoryProvider.MkDir(context.Background(), testDir, MkDirOptions{})
+	if err == nil {
+		t.Fatalf("expected error when creating nested directories")
+	}
+
+	// Ensure the directory is actually created
+	_, err = os.Stat(filepath.Join(strings.TrimPrefix(testingWorkspaceID, DirectoryProvider+"://"), "testDir"))
+	if err == nil {
+		t.Errorf("directory should not exist after creating nested directories")
+	}
+
+	err = directoryProvider.MkDir(context.Background(), testDir, MkDirOptions{CreateDirs: true})
+	if err != nil {
+		t.Fatalf("unexpected error when creating nested directories: %v", err)
+	}
+
+	// Ensure the directory is actually created
+	_, err = os.Stat(filepath.Join(strings.TrimPrefix(testingWorkspaceID, DirectoryProvider+"://"), testDir))
+	if err != nil {
+		t.Errorf("unexpected error when checking nested directories: %v", err)
+	}
+
+	err = directoryProvider.RmDir(context.Background(), testDir, RmDirOptions{})
+	if err != nil {
+		t.Errorf("unexpected error when removing directory: %v", err)
+	}
+
+	// Ensure the directory is actually deleted
+	_, err = os.Stat(filepath.Join(strings.TrimPrefix(testingWorkspaceID, DirectoryProvider+"://"), testDir))
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("directory should not exist after removing directory: %v", err)
+	}
+
+	err = directoryProvider.RmDir(context.Background(), "test", RmDirOptions{})
+	if err != nil {
+		t.Errorf("unexpected error when removing directory: %v", err)
+	}
+
+	// Ensure the directory is actually deleted
+	_, err = os.Stat(filepath.Join(strings.TrimPrefix(testingWorkspaceID, DirectoryProvider+"://"), "test"))
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("directory should not exist after removing directory: %v", err)
 	}
 }

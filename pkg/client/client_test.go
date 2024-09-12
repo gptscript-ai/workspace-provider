@@ -295,3 +295,74 @@ func TestWriteOptionsCompiledCorrectly(t *testing.T) {
 		delete(c.factories, "fake")
 	}
 }
+
+func TestRmDirOptionsCompiledCorrectly(t *testing.T) {
+	tests := []struct {
+		name     string
+		options  []RmDirOptions
+		expected RmDirOptions
+	}{
+		{
+			name:     "nothing provided",
+			expected: RmDirOptions{},
+		},
+		{
+			name:     "NonEmpty provided",
+			options:  []RmDirOptions{{NonEmpty: true}},
+			expected: RmDirOptions{NonEmpty: true},
+		},
+		{
+			name: "order for bools doesn't matter",
+			options: []RmDirOptions{
+				{NonEmpty: true},
+				{NonEmpty: false},
+			},
+			expected: RmDirOptions{NonEmpty: true},
+		},
+	}
+
+	for _, test := range tests {
+		c.factories["fake"] = &fake{expectedRmDirOptions: test.expected}
+		err := c.RmDir(context.Background(), "fake://", "fake.txt", test.options...)
+		if err != nil {
+			t.Errorf("unexpected error for %q test: %v", test.name, err)
+		}
+		delete(c.factories, "fake")
+	}
+}
+
+func TestMkDirOptionsCompiledCorrectly(t *testing.T) {
+	tests := []struct {
+		name     string
+		options  []MkDirOptions
+		expected MkDirOptions
+	}{
+		{
+			name:     "nothing provided",
+			expected: MkDirOptions{},
+		},
+		{
+			name:     "All options provided",
+			options:  []MkDirOptions{{CreateDirs: true, MustNotExist: true}},
+			expected: MkDirOptions{CreateDirs: true, MustNotExist: true},
+		},
+		{
+			name: "order for bools doesn't matter",
+			options: []MkDirOptions{
+				{CreateDirs: true},
+				{MustNotExist: true},
+				{},
+			},
+			expected: MkDirOptions{CreateDirs: true, MustNotExist: true},
+		},
+	}
+
+	for _, test := range tests {
+		c.factories["fake"] = &fake{expectedMkDirOptions: test.expected}
+		err := c.MkDir(context.Background(), "fake://", "fake.txt", test.options...)
+		if err != nil {
+			t.Errorf("unexpected error for %q test: %v", test.name, err)
+		}
+		delete(c.factories, "fake")
+	}
+}

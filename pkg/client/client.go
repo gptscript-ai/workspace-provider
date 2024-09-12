@@ -28,6 +28,8 @@ type workspaceClient interface {
 	DeleteFile(context.Context, string) error
 	OpenFile(context.Context, string) (io.ReadCloser, error)
 	WriteFile(context.Context, string, WriteOptions) (io.WriteCloser, error)
+	MkDir(context.Context, string, MkDirOptions) error
+	RmDir(context.Context, string, RmDirOptions) error
 }
 
 type Options struct {
@@ -161,6 +163,35 @@ func (c *Client) WriteFile(ctx context.Context, id, fileName string, opts ...Wri
 	}
 
 	return wc.WriteFile(ctx, fileName, opt)
+}
+
+func (c *Client) MkDir(ctx context.Context, id, dir string, opts ...MkDirOptions) error {
+	wc, err := c.getClient(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	opt := MkDirOptions{}
+	for _, o := range opts {
+		opt.MustNotExist = opt.MustNotExist || o.MustNotExist
+		opt.CreateDirs = opt.CreateDirs || o.CreateDirs
+	}
+
+	return wc.MkDir(ctx, dir, opt)
+}
+
+func (c *Client) RmDir(ctx context.Context, id, dir string, opts ...RmDirOptions) error {
+	wc, err := c.getClient(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	opt := RmDirOptions{}
+	for _, o := range opts {
+		opt.NonEmpty = opt.NonEmpty || o.NonEmpty
+	}
+
+	return wc.RmDir(ctx, dir, opt)
 }
 
 func (c *Client) getClient(ctx context.Context, id string) (workspaceClient, error) {

@@ -50,3 +50,13 @@ func (s *s3) WriteFile(context.Context, string, WriteOptions) (io.WriteCloser, e
 	//TODO implement me
 	panic("implement me")
 }
+
+func (s *s3) MkDir(ctx context.Context, s2 string, options MkDirOptions) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *s3) RmDir(ctx context.Context, s2 string, options RmDirOptions) error {
+	//TODO implement me
+	panic("implement me")
+}

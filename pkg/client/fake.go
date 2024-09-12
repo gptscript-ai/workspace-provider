@@ -16,6 +16,8 @@ type fake struct {
 	id                   string
 	expectedLsOptions    LsOptions
 	expectedWriteOptions WriteOptions
+	expectedMkDirOptions MkDirOptions
+	expectedRmDirOptions RmDirOptions
 }
 
 func (f *fake) New(_ context.Context, id string) workspaceClient {
@@ -23,6 +25,8 @@ func (f *fake) New(_ context.Context, id string) workspaceClient {
 		id:                   id,
 		expectedLsOptions:    f.expectedLsOptions,
 		expectedWriteOptions: f.expectedWriteOptions,
+		expectedMkDirOptions: f.expectedMkDirOptions,
+		expectedRmDirOptions: f.expectedRmDirOptions,
 	}
 }
 
@@ -70,4 +74,25 @@ func (f *fake) WriteFile(_ context.Context, _ string, opt WriteOptions) (io.Writ
 	}
 
 	return nil, errors.Join(errs...)
+}
+
+func (f *fake) MkDir(_ context.Context, _ string, opt MkDirOptions) error {
+	var errs []error
+	if f.expectedMkDirOptions.MustNotExist != opt.MustNotExist {
+		errs = append(errs, fmt.Errorf("unexpected mkdir must not exist: %v", opt.MustNotExist))
+	}
+	if f.expectedMkDirOptions.CreateDirs != opt.CreateDirs {
+		errs = append(errs, fmt.Errorf("unexpected mkdir create dirs: %v", opt.CreateDirs))
+	}
+
+	return errors.Join(errs...)
+}
+
+func (f *fake) RmDir(_ context.Context, _ string, opt RmDirOptions) error {
+	var errs []error
+	if f.expectedRmDirOptions.NonEmpty != opt.NonEmpty {
+		errs = append(errs, fmt.Errorf("unexpected rm dir must not exist: %v", opt.NonEmpty))
+	}
+
+	return errors.Join(errs...)
 }

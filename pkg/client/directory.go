@@ -35,9 +35,9 @@ func (d *directory) New(_ context.Context, id string) workspaceClient {
 	}
 }
 
-func (d *directory) Create(context.Context) (string, error) {
-	dir := filepath.Join(d.dataHome, uuid.NewString())
-	return DirectoryProvider + "://" + dir, os.MkdirAll(dir, 0o755)
+func (d *directory) Create(ctx context.Context) (string, error) {
+	dir := uuid.NewString()
+	return DirectoryProvider + "://" + filepath.Join(d.dataHome, dir), d.MkDir(ctx, dir, MkDirOptions{CreateDirs: true})
 }
 
 func (d *directory) Rm(_ context.Context, id string) error {
@@ -55,11 +55,21 @@ func (d *directory) Rm(_ context.Context, id string) error {
 }
 
 func (d *directory) DeleteFile(_ context.Context, file string) error {
-	return os.Remove(filepath.Join(d.dataHome, file))
+	err := os.Remove(filepath.Join(d.dataHome, file))
+	if os.IsNotExist(err) {
+		return FileNotFoundError{id: DirectoryProvider + "://" + d.dataHome, file: file}
+	}
+
+	return err
 }
 
 func (d *directory) OpenFile(_ context.Context, file string) (io.ReadCloser, error) {
-	return os.Open(filepath.Join(d.dataHome, file))
+	f, err := os.Open(filepath.Join(d.dataHome, file))
+	if os.IsNotExist(err) {
+		return nil, FileNotFoundError{id: DirectoryProvider + "://" + d.dataHome, file: file}
+	}
+
+	return f, err
 }
 
 func (d *directory) WriteFile(_ context.Context, fileName string, opt WriteOptions) (io.WriteCloser, error) {
@@ -114,4 +124,39 @@ func (d *directory) ls(ctx context.Context, opt LsOptions, prefix string) ([]str
 	}
 
 	return contents, nil
+}
+
+func (d *directory) MkDir(_ context.Context, dirName string, opt MkDirOptions) error {
+	fullDirName := filepath.Join(d.dataHome, dirName)
+	if _, err := os.Stat(fullDirName); err == nil {
+		if opt.MustNotExist {
+			return DirectoryAlreadyExistsError{id: DirectoryProvider + "://" + d.dataHome, dir: dirName}
+		}
+
+		return nil
+	}
+
+	if opt.CreateDirs {
+		return os.MkdirAll(fullDirName, 0o755)
+	}
+
+	return os.Mkdir(fullDirName, 0o755)
+}
+
+func (d *directory) RmDir(_ context.Context, dirName string, opt RmDirOptions) error {
+	fullDirName := filepath.Join(d.dataHome, dirName)
+	if opt.NonEmpty {
+		entries, err := os.ReadDir(fullDirName)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return DirectoryNotFoundError{id: DirectoryProvider + "://" + d.dataHome, dir: dirName}
+			}
+			return err
+		}
+		if len(entries) > 0 {
+			return DirectoryNotEmptyError{id: DirectoryProvider + "://" + d.dataHome, dir: dirName}
+		}
+	}
+
+	return os.RemoveAll(fullDirName)
 }

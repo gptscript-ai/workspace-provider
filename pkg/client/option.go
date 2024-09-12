@@ -20,3 +20,15 @@ type WriteOptions struct {
 	// Create the parent directories if they don't exist.
 	CreateDirs bool
 }
+
+type MkDirOptions struct {
+	// Requires that the directory doesn't exist before creating.
+	MustNotExist bool
+	// Recursively create the parent directories if they don't exist.
+	CreateDirs bool
+}
+
+type RmDirOptions struct {
+	// Only delete the directory it if is non-empty.
+	NonEmpty bool
+}
