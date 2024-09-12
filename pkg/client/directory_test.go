@@ -97,8 +97,9 @@ func TestWriteAndDeleteFileInDirectory(t *testing.T) {
 }
 
 func TestWriteAndDeleteFileInDirectoryWithSubDir(t *testing.T) {
+	filePath := filepath.Join("subdir", "test.txt")
 	// Copy a file into the workspace
-	file, err := directoryProvider.WriteFile(context.Background(), "subdir/test.txt", WriteOptions{CreateDirs: true})
+	file, err := directoryProvider.WriteFile(context.Background(), filePath, WriteOptions{CreateDirs: true})
 	if err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
@@ -113,7 +114,7 @@ func TestWriteAndDeleteFileInDirectoryWithSubDir(t *testing.T) {
 	}
 
 	// Ensure the file actually exists
-	if _, err = os.Stat(filepath.Join(strings.TrimPrefix(testingWorkspaceID, DirectoryProvider+"://"), "subdir/test.txt")); err != nil {
+	if _, err = os.Stat(filepath.Join(strings.TrimPrefix(testingWorkspaceID, DirectoryProvider+"://"), filePath)); err != nil {
 		t.Errorf("error when checking if file exists: %v", err)
 	}
 
@@ -123,7 +124,7 @@ func TestWriteAndDeleteFileInDirectoryWithSubDir(t *testing.T) {
 	}
 
 	// Ensure the file no longer exists
-	if _, err = os.Stat(filepath.Join(strings.TrimPrefix(testingWorkspaceID, DirectoryProvider+"://"), "subdir/test.txt")); !errors.Is(err, os.ErrNotExist) {
+	if _, err = os.Stat(filepath.Join(strings.TrimPrefix(testingWorkspaceID, DirectoryProvider+"://"), filePath)); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("file should not exist after deleting: %v", err)
 	}
 
@@ -134,7 +135,8 @@ func TestWriteAndDeleteFileInDirectoryWithSubDir(t *testing.T) {
 }
 
 func TestWriteFailsIfCreateDirsFalse(t *testing.T) {
-	_, err := directoryProvider.WriteFile(context.Background(), "subdir/test.txt", WriteOptions{})
+	filePath := filepath.Join("subdir", "test.txt")
+	_, err := directoryProvider.WriteFile(context.Background(), filePath, WriteOptions{})
 	if err == nil {
 		t.Errorf("expected error if creating dirs is false")
 	}
@@ -264,7 +266,7 @@ func TestLsWithSubDirs(t *testing.T) {
 	for i := range 7 {
 		fileName := fmt.Sprintf("test%d.txt", i)
 		if i >= 3 {
-			fileName = fmt.Sprintf("testDir/%s", fileName)
+			fileName = fmt.Sprintf("testDir%s%s", string(os.PathSeparator), fileName)
 		}
 		writeFile, err := directoryProvider.WriteFile(context.Background(), fileName, WriteOptions{CreateDirs: true})
 		if err != nil {
@@ -294,7 +296,7 @@ func TestLsWithSubDirs(t *testing.T) {
 	}
 
 	sort.Strings(contents)
-	if !reflect.DeepEqual(contents, []string{"test0.txt", "test1.txt", "test2.txt", "testDir/test3.txt", "testDir/test4.txt", "testDir/test5.txt", "testDir/test6.txt"}) {
+	if !reflect.DeepEqual(contents, []string{"test0.txt", "test1.txt", "test2.txt", "testDir" + string(os.PathSeparator) + "test3.txt", "testDir" + string(os.PathSeparator) + "test4.txt", "testDir" + string(os.PathSeparator) + "test5.txt", "testDir" + string(os.PathSeparator) + "test6.txt"}) {
 		t.Errorf("unexpected contents: %v", contents)
 	}
 }
@@ -311,7 +313,7 @@ func TestLsWithSubDirsNoRecursive(t *testing.T) {
 	for i := range 7 {
 		fileName := fmt.Sprintf("test%d.txt", i)
 		if i >= 3 {
-			fileName = fmt.Sprintf("testDir/%s", fileName)
+			fileName = fmt.Sprintf("testDir%s%s", string(os.PathSeparator), fileName)
 		}
 		writeFile, err := directoryProvider.WriteFile(context.Background(), fileName, WriteOptions{CreateDirs: true})
 		if err != nil {
@@ -358,7 +360,7 @@ func TestLsFromSubDir(t *testing.T) {
 	for i := range 7 {
 		fileName := fmt.Sprintf("test%d.txt", i)
 		if i >= 3 {
-			fileName = fmt.Sprintf("testDir/%s", fileName)
+			fileName = fmt.Sprintf("testDir%s%s", string(os.PathSeparator), fileName)
 		}
 		writeFile, err := directoryProvider.WriteFile(context.Background(), fileName, WriteOptions{CreateDirs: true})
 		if err != nil {
@@ -408,7 +410,7 @@ func TestLsWithSubDirsWithHiddenFiles(t *testing.T) {
 			fileName = "." + fileName
 		}
 		if i >= 3 {
-			fileName = fmt.Sprintf("testDir/%s", fileName)
+			fileName = fmt.Sprintf("testDir%s%s", string(os.PathSeparator), fileName)
 		}
 		writeFile, err := directoryProvider.WriteFile(context.Background(), fileName, WriteOptions{CreateDirs: true})
 		if err != nil {
@@ -438,7 +440,7 @@ func TestLsWithSubDirsWithHiddenFiles(t *testing.T) {
 	}
 
 	sort.Strings(contents)
-	if !reflect.DeepEqual(contents, []string{".test0.txt", ".test2.txt", "test1.txt", "testDir/.test4.txt", "testDir/.test6.txt", "testDir/test3.txt", "testDir/test5.txt"}) {
+	if !reflect.DeepEqual(contents, []string{".test0.txt", ".test2.txt", "test1.txt", "testDir" + string(os.PathSeparator) + ".test4.txt", "testDir" + string(os.PathSeparator) + ".test6.txt", "testDir" + string(os.PathSeparator) + "test3.txt", "testDir" + string(os.PathSeparator) + "test5.txt"}) {
 		t.Errorf("unexpected contents: %v", contents)
 	}
 }
@@ -458,7 +460,7 @@ func TestLsWithSubDirsExcludeHiddenFiles(t *testing.T) {
 			fileName = "." + fileName
 		}
 		if i >= 3 {
-			fileName = fmt.Sprintf("testDir/%s", fileName)
+			fileName = fmt.Sprintf("testDir%s%s", string(os.PathSeparator), fileName)
 		}
 		writeFile, err := directoryProvider.WriteFile(context.Background(), fileName, WriteOptions{CreateDirs: true})
 		if err != nil {
@@ -488,7 +490,7 @@ func TestLsWithSubDirsExcludeHiddenFiles(t *testing.T) {
 	}
 
 	sort.Strings(contents)
-	if !reflect.DeepEqual(contents, []string{"test1.txt", "testDir/test3.txt", "testDir/test5.txt"}) {
+	if !reflect.DeepEqual(contents, []string{"test1.txt", "testDir" + string(os.PathSeparator) + "test3.txt", "testDir" + string(os.PathSeparator) + "test5.txt"}) {
 		t.Errorf("unexpected contents: %v", contents)
 	}
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -75,7 +74,7 @@ func (d *directory) OpenFile(_ context.Context, file string) (io.ReadCloser, err
 func (d *directory) WriteFile(_ context.Context, fileName string, opt WriteOptions) (io.WriteCloser, error) {
 	fullFilePath := filepath.Join(d.dataHome, fileName)
 	if opt.CreateDirs {
-		if err := os.MkdirAll(path.Dir(fullFilePath), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(fullFilePath), 0o755); err != nil {
 			return nil, err
 		}
 	}
