@@ -1,6 +1,16 @@
 package client
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
+
+func newWorkspaceNotFoundError(id string) error {
+	if os.Getenv("WORKSPACE_PROVIDER_IGNORE_WORKSPACE_NOT_FOUND") != "" {
+		return nil
+	}
+	return WorkspaceNotFoundError{id: id}
+}
 
 type WorkspaceNotFoundError struct {
 	id string

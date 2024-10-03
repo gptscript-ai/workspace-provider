@@ -47,7 +47,7 @@ func (d *directory) Rm(_ context.Context, id string) error {
 
 	err := os.RemoveAll(id)
 	if os.IsNotExist(err) {
-		return WorkspaceNotFoundError{id: id}
+		return newWorkspaceNotFoundError(id)
 	}
 
 	return err
@@ -103,7 +103,7 @@ func (d *directory) ls(ctx context.Context, opt LsOptions, prefix string) ([]str
 	entries, err := os.ReadDir(filepath.Join(d.dataHome, opt.SubDir, prefix))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, &WorkspaceNotFoundError{id: DirectoryProvider + "://" + d.dataHome}
+			return nil, newWorkspaceNotFoundError(DirectoryProvider + "://" + d.dataHome)
 		}
 		return nil, err
 	}
