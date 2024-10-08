@@ -79,7 +79,7 @@ func (d *directory) WriteFile(_ context.Context, fileName string, opt WriteOptio
 		}
 	}
 
-	flags := os.O_WRONLY | os.O_CREATE
+	flags := os.O_WRONLY | os.O_CREATE | os.O_TRUNC
 	if opt.WithoutCreate {
 		flags ^= os.O_CREATE
 	}
