@@ -1,4 +1,4 @@
-module github.com/thedadams/workspace-provider
+module github.com/otto8-ai/workspace-provider
 
 go 1.23.0
 

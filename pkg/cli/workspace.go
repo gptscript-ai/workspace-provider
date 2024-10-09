@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/gptscript-ai/cmd"
+	"github.com/otto8-ai/workspace-provider/pkg/client"
 	"github.com/spf13/cobra"
-	"github.com/thedadams/workspace-provider/pkg/client"
 )
 
 type workspaceProvider struct {

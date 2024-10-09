@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/thedadams/workspace-provider/pkg/cli"
+	"github.com/otto8-ai/workspace-provider/pkg/cli"
 )
 
 func main() {
