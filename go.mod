@@ -5,7 +5,7 @@ go 1.23.0
 require (
 	github.com/adrg/xdg v0.5.0
 	github.com/google/uuid v1.6.0
-	github.com/gptscript-ai/cmd v0.0.0-20240802230653-326b7baf6fcb
+	github.com/gptscript-ai/cmd v0.0.0-20240907001148-ffd49061124a
 	github.com/spf13/cobra v1.8.1
 )
 
