@@ -57,7 +57,7 @@ func (d *directory) Rm(_ context.Context, id string) error {
 func (d *directory) DeleteFile(_ context.Context, file string) error {
 	err := os.Remove(filepath.Join(d.dataHome, file))
 	if os.IsNotExist(err) {
-		return FileNotFoundError{id: DirectoryProvider + "://" + d.dataHome, file: file}
+		return &FileNotFoundError{newNotFoundError(DirectoryProvider+"://"+d.dataHome, file)}
 	}
 
 	return err
@@ -66,7 +66,7 @@ func (d *directory) DeleteFile(_ context.Context, file string) error {
 func (d *directory) OpenFile(_ context.Context, file string) (io.ReadCloser, error) {
 	f, err := os.Open(filepath.Join(d.dataHome, file))
 	if os.IsNotExist(err) {
-		return nil, FileNotFoundError{id: DirectoryProvider + "://" + d.dataHome, file: file}
+		return nil, &FileNotFoundError{newNotFoundError(DirectoryProvider+"://"+d.dataHome, file)}
 	}
 
 	return f, err
@@ -139,7 +139,7 @@ func (d *directory) MkDir(_ context.Context, dirName string, opt MkDirOptions) e
 	fullDirName := filepath.Join(d.dataHome, dirName)
 	if _, err := os.Stat(fullDirName); err == nil {
 		if opt.MustNotExist {
-			return DirectoryAlreadyExistsError{id: DirectoryProvider + "://" + d.dataHome, dir: dirName}
+			return &DirectoryAlreadyExistsError{id: DirectoryProvider + "://" + d.dataHome, dir: dirName}
 		}
 
 		return nil
@@ -158,12 +158,12 @@ func (d *directory) RmDir(_ context.Context, dirName string, opt RmDirOptions) e
 		entries, err := os.ReadDir(fullDirName)
 		if err != nil {
 			if os.IsNotExist(err) {
-				return DirectoryNotFoundError{id: DirectoryProvider + "://" + d.dataHome, dir: dirName}
+				return &DirectoryNotFoundError{newNotFoundError(DirectoryProvider+"://"+d.dataHome, dirName)}
 			}
 			return err
 		}
 		if len(entries) > 0 {
-			return DirectoryNotEmptyError{id: DirectoryProvider + "://" + d.dataHome, dir: dirName}
+			return &DirectoryNotEmptyError{id: DirectoryProvider + "://" + d.dataHome, dir: dirName}
 		}
 	}
 
