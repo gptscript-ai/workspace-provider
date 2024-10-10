@@ -595,7 +595,7 @@ func TestMkDirRmDir(t *testing.T) {
 
 	// Creating the directory with MustNotExist should fail
 	err = directoryProvider.MkDir(context.Background(), "testDir", MkDirOptions{MustNotExist: true})
-	var dae DirectoryAlreadyExistsError
+	var dae *DirectoryAlreadyExistsError
 	if !errors.As(err, &dae) {
 		t.Fatalf("unexpected error when creating directory: %v", err)
 	}
@@ -610,7 +610,7 @@ func TestMkDirRmDir(t *testing.T) {
 	}
 
 	err = directoryProvider.RmDir(context.Background(), "testDir", RmDirOptions{NonEmpty: true})
-	var dne DirectoryNotEmptyError
+	var dne *DirectoryNotEmptyError
 	if !errors.As(err, &dne) {
 		t.Errorf("unexpected error when removing directory: %v", err)
 	}
