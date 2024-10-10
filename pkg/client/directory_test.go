@@ -244,12 +244,25 @@ func TestLs(t *testing.T) {
 		t.Fatalf("unexpected error when listing files: %v", err)
 	}
 
-	if len(contents) != 7 {
-		t.Errorf("unexpected number of files: %d", len(contents))
+	if len(contents.Children) != 7 {
+		t.Errorf("unexpected number of files: %d", len(contents.Children))
 	}
 
-	sort.Strings(contents)
-	if !reflect.DeepEqual(contents, []string{"test0.txt", "test1.txt", "test2.txt", "test3.txt", "test4.txt", "test5.txt", "test6.txt"}) {
+	sort.Slice(contents.Children, func(i, j int) bool {
+		return contents.Children[i].FileName < contents.Children[j].FileName
+	})
+	if !reflect.DeepEqual(
+		contents.Children,
+		[]WorkspaceContent{
+			{FileName: "test0.txt"},
+			{FileName: "test1.txt"},
+			{FileName: "test2.txt"},
+			{FileName: "test3.txt"},
+			{FileName: "test4.txt"},
+			{FileName: "test5.txt"},
+			{FileName: "test6.txt"},
+		},
+	) {
 		t.Errorf("unexpected contents: %v", contents)
 	}
 }
@@ -291,12 +304,30 @@ func TestLsWithSubDirs(t *testing.T) {
 		t.Fatalf("unexpected error when listing files: %v", err)
 	}
 
-	if len(contents) != 7 {
-		t.Errorf("unexpected number of files: %d", len(contents))
+	if len(contents.Children) != 4 {
+		t.Errorf("unexpected number of children: %d", len(contents.Children))
 	}
 
-	sort.Strings(contents)
-	if !reflect.DeepEqual(contents, []string{"test0.txt", "test1.txt", "test2.txt", "testDir" + string(os.PathSeparator) + "test3.txt", "testDir" + string(os.PathSeparator) + "test4.txt", "testDir" + string(os.PathSeparator) + "test5.txt", "testDir" + string(os.PathSeparator) + "test6.txt"}) {
+	sort.Slice(contents.Children, func(i, j int) bool {
+		return contents.Children[i].FileName < contents.Children[j].FileName
+	})
+	if !reflect.DeepEqual(
+		contents.Children,
+		[]WorkspaceContent{
+			{
+				Path: "testDir",
+				Children: []WorkspaceContent{
+					{FileName: "test3.txt"},
+					{FileName: "test4.txt"},
+					{FileName: "test5.txt"},
+					{FileName: "test6.txt"},
+				},
+			},
+			{FileName: "test0.txt"},
+			{FileName: "test1.txt"},
+			{FileName: "test2.txt"},
+		},
+	) {
 		t.Errorf("unexpected contents: %v", contents)
 	}
 }
@@ -338,12 +369,21 @@ func TestLsWithSubDirsNoRecursive(t *testing.T) {
 		t.Fatalf("unexpected error when listing files: %v", err)
 	}
 
-	if len(contents) != 3 {
-		t.Errorf("unexpected number of files: %d", len(contents))
+	if len(contents.Children) != 3 {
+		t.Errorf("unexpected number of files: %d", len(contents.Children))
 	}
 
-	sort.Strings(contents)
-	if !reflect.DeepEqual(contents, []string{"test0.txt", "test1.txt", "test2.txt"}) {
+	sort.Slice(contents.Children, func(i, j int) bool {
+		return contents.Children[i].FileName < contents.Children[j].FileName
+	})
+	if !reflect.DeepEqual(
+		contents.Children,
+		[]WorkspaceContent{
+			{FileName: "test0.txt"},
+			{FileName: "test1.txt"},
+			{FileName: "test2.txt"},
+		},
+	) {
 		t.Errorf("unexpected contents: %v", contents)
 	}
 }
@@ -385,12 +425,26 @@ func TestLsFromSubDir(t *testing.T) {
 		t.Fatalf("unexpected error when listing files: %v", err)
 	}
 
-	if len(contents) != 4 {
-		t.Errorf("unexpected number of files: %d", len(contents))
+	if len(contents.Children) != 4 {
+		t.Errorf("unexpected number of contents: %d", len(contents.Children))
 	}
 
-	sort.Strings(contents)
-	if !reflect.DeepEqual(contents, []string{"test3.txt", "test4.txt", "test5.txt", "test6.txt"}) {
+	sort.Slice(contents.Children, func(i, j int) bool {
+		return contents.Children[i].FileName < contents.Children[j].FileName
+	})
+	if !reflect.DeepEqual(
+		contents,
+		WorkspaceContent{
+			ID:   testingWorkspaceID,
+			Path: "testDir",
+			Children: []WorkspaceContent{
+				{FileName: "test3.txt"},
+				{FileName: "test4.txt"},
+				{FileName: "test5.txt"},
+				{FileName: "test6.txt"},
+			},
+		},
+	) {
 		t.Errorf("unexpected contents: %v", contents)
 	}
 }
@@ -435,12 +489,30 @@ func TestLsWithSubDirsWithHiddenFiles(t *testing.T) {
 		t.Fatalf("unexpected error when listing files: %v", err)
 	}
 
-	if len(contents) != 7 {
-		t.Errorf("unexpected number of files: %d", len(contents))
+	if len(contents.Children) != 4 {
+		t.Errorf("unexpected number of contents: %d", len(contents.Children))
 	}
 
-	sort.Strings(contents)
-	if !reflect.DeepEqual(contents, []string{".test0.txt", ".test2.txt", "test1.txt", "testDir" + string(os.PathSeparator) + ".test4.txt", "testDir" + string(os.PathSeparator) + ".test6.txt", "testDir" + string(os.PathSeparator) + "test3.txt", "testDir" + string(os.PathSeparator) + "test5.txt"}) {
+	sort.Slice(contents.Children, func(i, j int) bool {
+		return contents.Children[i].FileName < contents.Children[j].FileName
+	})
+	if !reflect.DeepEqual(
+		contents.Children,
+		[]WorkspaceContent{
+			{
+				Path: "testDir",
+				Children: []WorkspaceContent{
+					{FileName: ".test4.txt"},
+					{FileName: ".test6.txt"},
+					{FileName: "test3.txt"},
+					{FileName: "test5.txt"},
+				},
+			},
+			{FileName: ".test0.txt"},
+			{FileName: ".test2.txt"},
+			{FileName: "test1.txt"},
+		},
+	) {
 		t.Errorf("unexpected contents: %v", contents)
 	}
 }
@@ -485,12 +557,26 @@ func TestLsWithSubDirsExcludeHiddenFiles(t *testing.T) {
 		t.Fatalf("unexpected error when listing files: %v", err)
 	}
 
-	if len(contents) != 3 {
-		t.Errorf("unexpected number of files: %d", len(contents))
+	if len(contents.Children) != 2 {
+		t.Errorf("unexpected number of contents: %d", len(contents.Children))
 	}
 
-	sort.Strings(contents)
-	if !reflect.DeepEqual(contents, []string{"test1.txt", "testDir" + string(os.PathSeparator) + "test3.txt", "testDir" + string(os.PathSeparator) + "test5.txt"}) {
+	sort.Slice(contents.Children, func(i, j int) bool {
+		return contents.Children[i].FileName < contents.Children[j].FileName
+	})
+	if !reflect.DeepEqual(
+		contents.Children,
+		[]WorkspaceContent{
+			{
+				Path: "testDir",
+				Children: []WorkspaceContent{
+					{FileName: "test3.txt"},
+					{FileName: "test5.txt"},
+				},
+			},
+			{FileName: "test1.txt"},
+		},
+	) {
 		t.Errorf("unexpected contents: %v", contents)
 	}
 }

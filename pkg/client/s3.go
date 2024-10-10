@@ -31,7 +31,7 @@ func (s *s3) Rm(context.Context, string) error {
 	panic("implement me")
 }
 
-func (s *s3) Ls(context.Context, LsOptions) ([]string, error) {
+func (s *s3) Ls(context.Context, LsOptions) (WorkspaceContent, error) {
 	//TODO implement me
 	panic("implement me")
 }

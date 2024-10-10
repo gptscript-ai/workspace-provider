@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 
-	"github.com/gptscript-ai/cmd"
 	"github.com/spf13/cobra"
 )
 
@@ -11,13 +10,10 @@ type rmFile struct {
 	root *workspaceProvider
 }
 
-func newRmFile(root *workspaceProvider) *cobra.Command {
-	c := cmd.Command(&rmFile{root: root})
+func (r *rmFile) Customize(c *cobra.Command) {
 	c.Args = cobra.MinimumNArgs(2)
-	c.Use = "rm-file ID FILE..."
+	c.Use = "rm-file [OPTIONS] ID FILE..."
 	c.Short = "Remove files from a workspace"
-
-	return c
 }
 
 func (r *rmFile) Run(cmd *cobra.Command, args []string) error {

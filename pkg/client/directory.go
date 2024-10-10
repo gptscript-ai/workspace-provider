@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -95,34 +96,43 @@ func (d *directory) WriteFile(_ context.Context, fileName string, opt WriteOptio
 	return file, nil
 }
 
-func (d *directory) Ls(ctx context.Context, opt LsOptions) ([]string, error) {
-	return d.ls(ctx, opt, "")
+func (d *directory) Ls(ctx context.Context, opt LsOptions) (WorkspaceContent, error) {
+	contents, err := d.ls(ctx, opt, opt.SubDir)
+	if err != nil || len(contents) == 0 {
+		return WorkspaceContent{}, err
+	}
+	content := contents[0]
+	content.ID = fmt.Sprintf("%s://%s", DirectoryProvider, d.dataHome)
+	return content, nil
 }
 
-func (d *directory) ls(ctx context.Context, opt LsOptions, prefix string) ([]string, error) {
-	entries, err := os.ReadDir(filepath.Join(d.dataHome, opt.SubDir, prefix))
+func (d *directory) ls(ctx context.Context, opt LsOptions, prefix string) ([]WorkspaceContent, error) {
+	root := WorkspaceContent{Path: prefix}
+	entries, err := os.ReadDir(filepath.Join(d.dataHome, root.Path))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, newWorkspaceNotFoundError(DirectoryProvider + "://" + d.dataHome)
+			return nil, &DirectoryNotFoundError{newNotFoundError(DirectoryProvider+"://"+d.dataHome, root.Path)}
 		}
 		return nil, err
 	}
 
-	contents := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() && !opt.NonRecursive {
-			c, err := d.ls(ctx, opt, filepath.Join(prefix, entry.Name()))
-			if err != nil {
-				return nil, err
-			}
+	if len(entries) != 0 {
+		root.Children = make([]WorkspaceContent, 0, len(entries))
+		for _, entry := range entries {
+			if entry.IsDir() && !opt.NonRecursive {
+				c, err := d.ls(ctx, opt, filepath.Join(root.Path, entry.Name()))
+				if err != nil {
+					return nil, err
+				}
 
-			contents = append(contents, c...)
-		} else if !entry.IsDir() && (!opt.ExcludeHidden || !strings.HasPrefix(entry.Name(), ".")) {
-			contents = append(contents, filepath.Join(prefix, entry.Name()))
+				root.Children = append(root.Children, c...)
+			} else if !entry.IsDir() && (!opt.ExcludeHidden || !strings.HasPrefix(entry.Name(), ".")) {
+				root.Children = append(root.Children, WorkspaceContent{FileName: entry.Name()})
+			}
 		}
 	}
 
-	return contents, nil
+	return []WorkspaceContent{root}, nil
 }
 
 func (d *directory) MkDir(_ context.Context, dirName string, opt MkDirOptions) error {

@@ -2,8 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
-	"github.com/gptscript-ai/cmd"
 	"github.com/spf13/cobra"
 )
 
@@ -11,17 +11,22 @@ type rm struct {
 	root *workspaceProvider
 }
 
-func newRm(root *workspaceProvider) *cobra.Command {
-	c := cmd.Command(&rm{root: root})
+func (r *rm) Customize(c *cobra.Command) {
 	c.Args = cobra.MinimumNArgs(1)
-	c.Use = "rm ID..."
+	c.Use = "rm [OPTIONS] ID..."
 	c.Short = "Remove a workspace"
-
-	return c
 }
 
 func (r *rm) Run(cmd *cobra.Command, args []string) error {
+	if len(args) == 1 {
+		if args[0] == "" {
+			return fmt.Errorf("at least one argument required")
+		} else {
+			args = strings.Split(args[0], ",")
+		}
+	}
 	for _, arg := range args {
+		fmt.Println(arg)
 		if err := r.root.client.Rm(cmd.Context(), arg); err != nil {
 			return err
 		}

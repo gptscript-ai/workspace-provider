@@ -5,6 +5,7 @@ import (
 
 	"github.com/gptscript-ai/cmd"
 	"github.com/otto8-ai/workspace-provider/pkg/client"
+	"github.com/otto8-ai/workspace-provider/pkg/version"
 	"github.com/spf13/cobra"
 )
 
@@ -17,21 +18,30 @@ type workspaceProvider struct {
 
 func New() *cobra.Command {
 	w := new(workspaceProvider)
-	c := cmd.Command(w)
-
-	c.AddCommand(
-		newCreate(w),
-		newLs(w),
-		newRm(w),
-		newCpFile(w),
-		newRmFile(w),
+	c := cmd.Command(w,
+		&create{root: w},
+		&rm{root: w},
+		&ls{root: w},
+		&mkdir{root: w},
+		&rmDir{root: w},
+		&cpFile{root: w},
+		&writeFile{root: w},
+		&rmFile{root: w},
+		&readFile{root: w},
 	)
+
 	c.CompletionOptions.HiddenDefaultCmd = true
 	return c
 }
 
 func (w *workspaceProvider) Run(cmd *cobra.Command, _ []string) error {
 	return cmd.Help()
+}
+
+func (w *workspaceProvider) Customize(cmd *cobra.Command) {
+	cmd.Version = version.Get().String()
+	cmd.CompletionOptions.HiddenDefaultCmd = true
+	cmd.TraverseChildren = true
 }
 
 func (w *workspaceProvider) PersistentPre(*cobra.Command, []string) error {

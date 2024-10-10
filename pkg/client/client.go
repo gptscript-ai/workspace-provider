@@ -24,7 +24,7 @@ type workspaceFactory interface {
 }
 
 type workspaceClient interface {
-	Ls(context.Context, LsOptions) ([]string, error)
+	Ls(context.Context, LsOptions) (WorkspaceContent, error)
 	DeleteFile(context.Context, string) error
 	OpenFile(context.Context, string) (io.ReadCloser, error)
 	WriteFile(context.Context, string, WriteOptions) (io.WriteCloser, error)
@@ -35,6 +35,15 @@ type workspaceClient interface {
 type Options struct {
 	DirectoryDataHome string
 	S3DataHome        string
+}
+
+type WorkspaceContent struct {
+	ID, Path, FileName string
+	Children           []WorkspaceContent
+}
+
+func (c *WorkspaceContent) String() string {
+	return filepath.Join(c.Path, c.FileName)
 }
 
 func complete(opts ...Options) Options {
@@ -114,18 +123,19 @@ func (c *Client) Rm(ctx context.Context, id string) error {
 	return f.Rm(ctx, id)
 }
 
-func (c *Client) Ls(ctx context.Context, id string, opts ...LsOptions) ([]string, error) {
+func (c *Client) Ls(ctx context.Context, id string, opts ...LsOptions) (WorkspaceContent, error) {
 	wc, err := c.getClient(ctx, id)
 	if err != nil {
-		return nil, err
+		return WorkspaceContent{}, err
 	}
 
-	opt := LsOptions{}
+	var opt LsOptions
 	for _, o := range opts {
 		if o.SubDir != "" {
 			opt.SubDir = o.SubDir
 		}
 		opt.NonRecursive = opt.NonRecursive || o.NonRecursive
+		opt.ExcludeHidden = opt.ExcludeHidden || o.ExcludeHidden
 	}
 
 	return wc.Ls(ctx, opt)
@@ -155,7 +165,7 @@ func (c *Client) WriteFile(ctx context.Context, id, fileName string, opts ...Wri
 		return nil, err
 	}
 
-	opt := WriteOptions{}
+	var opt WriteOptions
 	for _, o := range opts {
 		opt.CreateDirs = opt.CreateDirs || o.CreateDirs
 		opt.WithoutCreate = opt.WithoutCreate || o.WithoutCreate
@@ -186,7 +196,7 @@ func (c *Client) RmDir(ctx context.Context, id, dir string, opts ...RmDirOptions
 		return err
 	}
 
-	opt := RmDirOptions{}
+	var opt RmDirOptions
 	for _, o := range opts {
 		opt.NonEmpty = opt.NonEmpty || o.NonEmpty
 	}
@@ -223,23 +233,25 @@ func cp(ctx context.Context, source, dest workspaceClient) error {
 		return err
 	}
 
-	for _, entry := range contents {
-		if err = cpFile(ctx, entry, source, dest); err != nil {
-			return err
+	for _, entry := range contents.Children {
+		if entry.FileName != "" {
+			if err = cpFile(ctx, entry, source, dest); err != nil {
+				return err
+			}
 		}
 	}
 
 	return nil
 }
 
-func cpFile(ctx context.Context, entry string, source, dest workspaceClient) error {
-	sourceFile, err := source.OpenFile(ctx, entry)
+func cpFile(ctx context.Context, entry WorkspaceContent, source, dest workspaceClient) error {
+	sourceFile, err := source.OpenFile(ctx, entry.String())
 	if err != nil {
 		return err
 	}
 	defer sourceFile.Close()
 
-	destFile, err := dest.WriteFile(ctx, entry, WriteOptions{CreateDirs: true})
+	destFile, err := dest.WriteFile(ctx, entry.String(), WriteOptions{CreateDirs: true})
 	if err != nil {
 		return err
 	}
