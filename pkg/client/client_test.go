@@ -84,17 +84,17 @@ func TestCreateAndRmDirectoryProviderFromProvider(t *testing.T) {
 	}
 
 	// Ensure the file was copied over
-	files, err := c.Ls(context.Background(), id)
+	workspaceContent, err := c.Ls(context.Background(), id)
 	if err != nil {
-		t.Errorf("unexpected error when listing files: %v", err)
+		t.Errorf("unexpected error when listing workspaceContent: %v", err)
 	}
 
-	if len(files) != 1 {
-		t.Errorf("unexpected number of files: %d", len(files))
+	if len(workspaceContent.Children) != 1 {
+		t.Errorf("unexpected number of workspaceContent: %d", len(workspaceContent.Children))
 	}
 
-	if files[0] != "test.txt" {
-		t.Errorf("unexpected file: %s", files[0])
+	if workspaceContent.Children[0].FileName != "test.txt" {
+		t.Errorf("unexpected file: %s", workspaceContent.Children[0].FileName)
 	}
 
 	// Read the file to ensure it was copied over

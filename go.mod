@@ -1,6 +1,6 @@
 module github.com/otto8-ai/workspace-provider
 
-go 1.23.0
+go 1.23.2
 
 require (
 	github.com/adrg/xdg v0.5.0

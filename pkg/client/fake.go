@@ -36,7 +36,7 @@ func (f *fake) Rm(context.Context, string) error {
 	panic("implement me")
 }
 
-func (f *fake) Ls(_ context.Context, opt LsOptions) ([]string, error) {
+func (f *fake) Ls(_ context.Context, opt LsOptions) (WorkspaceContent, error) {
 	var errs []error
 	if f.expectedLsOptions.SubDir != opt.SubDir {
 		errs = append(errs, fmt.Errorf("unexpected ls subdirectory: %s", opt.SubDir))
@@ -44,7 +44,7 @@ func (f *fake) Ls(_ context.Context, opt LsOptions) ([]string, error) {
 	if f.expectedLsOptions.NonRecursive != opt.NonRecursive {
 		errs = append(errs, fmt.Errorf("unexpected ls non-recursive: %v", opt.NonRecursive))
 	}
-	return nil, errors.Join(errs...)
+	return WorkspaceContent{}, errors.Join(errs...)
 }
 
 func (f *fake) DeleteFile(context.Context, string) error {
