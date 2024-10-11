@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/otto8-ai/workspace-provider/pkg/client"
@@ -11,6 +12,8 @@ type rmDir struct {
 	root *workspaceProvider
 
 	client.RmDirOptions
+
+	IgnoreNotFound bool `usage:"Ignore not found errors"`
 }
 
 func (r *rmDir) Customize(c *cobra.Command) {
@@ -23,6 +26,11 @@ func (r *rmDir) Run(cmd *cobra.Command, args []string) error {
 	workspaceID := args[0]
 	for _, arg := range args[1:] {
 		if err := r.root.client.RmDir(cmd.Context(), workspaceID, arg, r.RmDirOptions); err != nil {
+			var notFound *client.DirectoryNotFoundError
+			if r.IgnoreNotFound && errors.As(err, &notFound) {
+				fmt.Printf("directory %s not found in workspace %s\n", arg, workspaceID)
+				continue
+			}
 			return err
 		}
 

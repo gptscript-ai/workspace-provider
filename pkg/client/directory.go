@@ -46,12 +46,14 @@ func (d *directory) Rm(_ context.Context, id string) error {
 		id = filepath.Join(d.dataHome, id)
 	}
 
-	err := os.RemoveAll(id)
-	if os.IsNotExist(err) {
-		return newWorkspaceNotFoundError(id)
+	if _, err := os.Stat(id); err != nil {
+		if os.IsNotExist(err) {
+			return newWorkspaceNotFoundError(id)
+		}
+		return err
 	}
 
-	return err
+	return os.RemoveAll(id)
 }
 
 func (d *directory) DeleteFile(_ context.Context, file string) error {
