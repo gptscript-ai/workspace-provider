@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/gptscript-ai/cmd"
-	"github.com/otto8-ai/workspace-provider/pkg/client"
-	"github.com/otto8-ai/workspace-provider/pkg/version"
+	"github.com/gptscript-ai/workspace-provider/pkg/client"
+	"github.com/gptscript-ai/workspace-provider/pkg/version"
 	"github.com/spf13/cobra"
 )
 
