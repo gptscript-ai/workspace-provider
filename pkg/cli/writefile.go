@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gptscript-ai/go-gptscript"
 	"github.com/gptscript-ai/workspace-provider/pkg/client"
 	"github.com/spf13/cobra"
 )
@@ -29,7 +30,7 @@ func (c *writeFile) Run(cmd *cobra.Command, args []string) error {
 	if args[2] == "-" {
 		source = os.Stdin
 	} else {
-		source = strings.NewReader(args[2])
+		source = strings.NewReader(gptscript.GetEnv("FILE_CONTENTS", args[2]))
 	}
 
 	if c.Base64EncodedInput {
