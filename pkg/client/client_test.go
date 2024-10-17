@@ -5,12 +5,17 @@ import (
 	"errors"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/aws/aws-sdk-go-v2/aws/transport/http"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-var c = New()
+var c, _ = New(context.Background(), Options{
+	S3BucketName:   os.Getenv("WORKSPACE_PROVIDER_S3_BUCKET"),
+	S3BaseEndpoint: os.Getenv("WORKSPACE_PROVIDER_S3_BASE_ENDPOINT"),
+})
 
 func TestProviders(t *testing.T) {
 	providers := c.Providers()
@@ -36,18 +41,46 @@ func TestCreateAndRmDirectoryProvider(t *testing.T) {
 		t.Errorf("unexpected id: %s", id)
 	}
 
-	// Ensure the directory actually exists
-	if _, err = os.Stat(strings.TrimPrefix(id, DirectoryProvider+"://")); err != nil {
-		t.Errorf("error when checking if directory exists: %v", err)
+	// The directory won't actually exist
+	if _, err = os.Stat(strings.TrimPrefix(id, DirectoryProvider+"://")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("unexpected error when checking if directory exists: %v", err)
 	}
 
 	if err = c.Rm(context.Background(), id); err != nil {
 		t.Errorf("unexpected error when removing workspace: %v", err)
 	}
+}
 
-	// Ensure the directory actually exists
-	if _, err = os.Stat(strings.TrimPrefix(id, DirectoryProvider+"://")); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("directory should not exist after removing workspace: %v", err)
+func TestCreateAndRmS3Provider(t *testing.T) {
+	if skipS3Tests {
+		t.Skip("Skipping S3 tests")
+	}
+
+	id, err := c.Create(context.Background(), S3Provider)
+	if err != nil {
+		t.Errorf("error creating workspace: %v", err)
+	}
+
+	if !strings.HasPrefix(id, S3Provider+"://") {
+		t.Errorf("unexpected id: %s", id)
+	}
+
+	bucket, dir, _ := strings.Cut(strings.TrimPrefix(id, S3Provider+"://"), "/")
+	testS3Provider := &s3Provider{
+		bucket: bucket,
+		client: s3Prv.client,
+	}
+
+	// Nothing should be created
+	var respErr *http.ResponseError
+	if _, err := testS3Provider.client.GetObject(context.Background(), &s3.GetObjectInput{Bucket: &testS3Provider.bucket, Key: &dir}); err == nil {
+		t.Errorf("expected error when checking if workspace exists")
+	} else if !errors.As(err, &respErr) || respErr.Response.StatusCode != 404 {
+		t.Errorf("unexpected error when checking if workspace exists: %v", err)
+	}
+
+	if err = c.Rm(context.Background(), id); err != nil {
+		t.Errorf("unexpected error when removing workspace: %v", err)
 	}
 }
 
@@ -64,18 +97,8 @@ func TestCreateAndRmDirectoryProviderFromProvider(t *testing.T) {
 	})
 
 	// Put a file in the parent workspace
-	file, err := c.WriteFile(context.Background(), parentID, "test.txt")
-	if err != nil {
+	if err = c.WriteFile(context.Background(), parentID, "test.txt", strings.NewReader("test")); err != nil {
 		t.Fatalf("error getting file to write: %v", err)
-	}
-
-	if _, err = file.Write([]byte("test")); err != nil {
-		file.Close()
-		t.Fatalf("error writing file: %v", err)
-	}
-
-	if err = file.Close(); err != nil {
-		t.Errorf("error closing file: %v", err)
 	}
 
 	id, err := c.Create(context.Background(), DirectoryProvider, parentID)
@@ -84,17 +107,145 @@ func TestCreateAndRmDirectoryProviderFromProvider(t *testing.T) {
 	}
 
 	// Ensure the file was copied over
-	workspaceContent, err := c.Ls(context.Background(), id)
+	workspaceContent, err := c.Ls(context.Background(), id, "")
 	if err != nil {
 		t.Errorf("unexpected error when listing workspaceContent: %v", err)
 	}
 
-	if len(workspaceContent.Children) != 1 {
-		t.Errorf("unexpected number of workspaceContent: %d", len(workspaceContent.Children))
+	if len(workspaceContent) != 1 {
+		t.Errorf("unexpected number of workspaceContent: %d", len(workspaceContent))
 	}
 
-	if workspaceContent.Children[0].FileName != "test.txt" {
-		t.Errorf("unexpected file: %s", workspaceContent.Children[0].FileName)
+	if workspaceContent[0] != "test.txt" {
+		t.Errorf("unexpected file: %s", workspaceContent[0])
+	}
+
+	// Read the file to ensure it was copied over
+	readFile, err := c.OpenFile(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when reading file: %v", err)
+	}
+
+	content, err := io.ReadAll(readFile)
+	if err != nil {
+		t.Errorf("unexpected error when reading file: %v", err)
+	}
+
+	if string(content) != "test" {
+		t.Errorf("unexpected content: %s", string(content))
+	}
+
+	if err = readFile.Close(); err != nil {
+		t.Errorf("error closing file: %v", err)
+	}
+
+	if err = c.Rm(context.Background(), id); err != nil {
+		t.Errorf("unexpected error when removing workspace: %v", err)
+	}
+}
+
+func TestCreateAndRmS3ProviderFromProvider(t *testing.T) {
+	if skipS3Tests {
+		t.Skip("Skipping S3 tests")
+	}
+
+	parentID, err := c.Create(context.Background(), S3Provider)
+	if err != nil {
+		t.Errorf("error creating workspace: %v", err)
+	}
+
+	t.Cleanup(func() {
+		if err := c.Rm(context.Background(), parentID); err != nil {
+			t.Errorf("unexpected error when removing parent workspace: %v", err)
+		}
+	})
+
+	// Put a file in the parent workspace
+	if err = c.WriteFile(context.Background(), parentID, "test.txt", strings.NewReader("test")); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	id, err := c.Create(context.Background(), S3Provider, parentID)
+	if err != nil {
+		t.Errorf("error creating workspace: %v", err)
+	}
+
+	// Ensure the file was copied over
+	workspaceContent, err := c.Ls(context.Background(), id, "")
+	if err != nil {
+		t.Errorf("unexpected error when listing workspaceContent: %v", err)
+	}
+
+	if len(workspaceContent) != 1 {
+		t.Errorf("unexpected number of workspaceContent: %d", len(workspaceContent))
+	}
+
+	if workspaceContent[0] != "test.txt" {
+		t.Errorf("unexpected file: %s", workspaceContent[0])
+	}
+
+	// Read the file to ensure it was copied over
+	readFile, err := c.OpenFile(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when reading file: %v", err)
+	}
+
+	content, err := io.ReadAll(readFile)
+	if err != nil {
+		t.Errorf("unexpected error when reading file: %v", err)
+	}
+
+	if string(content) != "test" {
+		t.Errorf("unexpected content: %s", string(content))
+	}
+
+	if err = readFile.Close(); err != nil {
+		t.Errorf("error closing file: %v", err)
+	}
+
+	if err = c.Rm(context.Background(), id); err != nil {
+		t.Errorf("unexpected error when removing workspace: %v", err)
+	}
+}
+
+func TestCreateAndRmS3ProviderFromDirectoryProvider(t *testing.T) {
+	if skipS3Tests {
+		t.Skip("Skipping S3 tests")
+	}
+
+	parentID, err := c.Create(context.Background(), DirectoryProvider)
+	if err != nil {
+		t.Errorf("error creating workspace: %v", err)
+	}
+
+	t.Cleanup(func() {
+		if err := c.Rm(context.Background(), parentID); err != nil {
+			t.Errorf("unexpected error when removing parent workspace: %v", err)
+		}
+	})
+
+	// Put a file in the parent workspace
+	if err = c.WriteFile(context.Background(), parentID, "test.txt", strings.NewReader("test")); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	id, err := c.Create(context.Background(), S3Provider, parentID)
+	if err != nil {
+		t.Errorf("error creating workspace: %v", err)
+	}
+
+	// Ensure the file was copied over
+	workspaceContent, err := c.Ls(context.Background(), id, "")
+	if err != nil {
+		t.Errorf("unexpected error when listing workspaceContent: %v", err)
+	}
+
+	if len(workspaceContent) != 1 {
+		t.Errorf("unexpected number of workspaceContent: %d", len(workspaceContent))
+	}
+
+	if workspaceContent[0] != "test.txt" {
+		t.Errorf("unexpected file: %s", workspaceContent[0])
 	}
 
 	// Read the file to ensure it was copied over
@@ -134,23 +285,8 @@ func TestWriteAndDeleteFileDirectoryProvider(t *testing.T) {
 	})
 
 	// Put a file in the parent workspace
-	file, err := c.WriteFile(context.Background(), id, "test.txt")
-	if err != nil {
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test")); err != nil {
 		t.Fatalf("error getting file to write: %v", err)
-	}
-
-	if _, err = file.Write([]byte("test")); err != nil {
-		file.Close()
-		t.Fatalf("error writing file: %v", err)
-	}
-
-	if err = file.Close(); err != nil {
-		t.Errorf("error closing file: %v", err)
-	}
-
-	// Ensure the file actually exists
-	if _, err = os.Stat(filepath.Join(strings.TrimPrefix(id, DirectoryProvider+"://"), "test.txt")); err != nil {
-		t.Errorf("error when checking if file exists: %v", err)
 	}
 
 	// Read the file to ensure it was copied over
@@ -176,193 +312,50 @@ func TestWriteAndDeleteFileDirectoryProvider(t *testing.T) {
 	if err = c.DeleteFile(context.Background(), id, "test.txt"); err != nil {
 		t.Errorf("unexpected error when deleting file: %v", err)
 	}
-
-	// Ensure the file no longer exists
-	if _, err = os.Stat(filepath.Join(strings.TrimPrefix(id, DirectoryProvider+"://"), "test.txt")); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("file should not exist after deleting: %v", err)
-	}
 }
 
-func TestLsOptionsCompiledCorrectly(t *testing.T) {
-	tests := []struct {
-		name     string
-		options  []LsOptions
-		expected LsOptions
-	}{
-		{
-			name:     "nothing provided",
-			expected: LsOptions{},
-		},
-		{
-			name:     "subdir provided",
-			options:  []LsOptions{{SubDir: "test"}},
-			expected: LsOptions{SubDir: "test"},
-		},
-		{
-			name:     "last subdir used",
-			options:  []LsOptions{{SubDir: "test"}, {SubDir: "test2"}},
-			expected: LsOptions{SubDir: "test2"},
-		},
-		{
-			name:     "non-recursive",
-			options:  []LsOptions{{NonRecursive: true}},
-			expected: LsOptions{NonRecursive: true},
-		},
-		{
-			name: "non-recursive order doesn't matter",
-			options: []LsOptions{
-				{NonRecursive: true},
-				{NonRecursive: false},
-			},
-			expected: LsOptions{NonRecursive: true},
-		},
-		{
-			name:     "exclude hidden",
-			options:  []LsOptions{{ExcludeHidden: true}},
-			expected: LsOptions{ExcludeHidden: true},
-		},
-		{
-			name: "exclude hidden order doesn't matter",
-			options: []LsOptions{
-				{ExcludeHidden: true},
-				{ExcludeHidden: false},
-			},
-			expected: LsOptions{ExcludeHidden: true},
-		},
-		{
-			name: "subdir and non-recursive taken from different entries",
-			options: []LsOptions{
-				{SubDir: "test", NonRecursive: true},
-				{SubDir: "taken", NonRecursive: false, ExcludeHidden: true},
-			},
-			expected: LsOptions{SubDir: "taken", NonRecursive: true, ExcludeHidden: true},
-		},
+func TestWriteAndDeleteFileS3Provider(t *testing.T) {
+	if skipS3Tests {
+		t.Skip("Skipping S3 tests")
 	}
 
-	for _, test := range tests {
-		c.factories["fake"] = &fake{expectedLsOptions: test.expected}
-		_, err := c.Ls(context.Background(), "fake://", test.options...)
-		if err != nil {
-			t.Errorf("unexpected error for %q test: %v", test.name, err)
+	id, err := c.Create(context.Background(), S3Provider)
+	if err != nil {
+		t.Errorf("error creating workspace: %v", err)
+	}
+
+	t.Cleanup(func() {
+		if err := c.Rm(context.Background(), id); err != nil {
+			t.Errorf("unexpected error when removing parent workspace: %v", err)
 		}
-		delete(c.factories, "fake")
+	})
+
+	// Put a file in the parent workspace
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test")); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
 	}
 
-}
-
-func TestWriteOptionsCompiledCorrectly(t *testing.T) {
-	tests := []struct {
-		name     string
-		options  []WriteOptions
-		expected WriteOptions
-	}{
-		{
-			name:     "nothing provided",
-			expected: WriteOptions{},
-		},
-		{
-			name:     "WithoutCreate provided",
-			options:  []WriteOptions{{WithoutCreate: true}},
-			expected: WriteOptions{WithoutCreate: true},
-		},
-		{
-			name:     "MustNotExist provided",
-			options:  []WriteOptions{{MustNotExist: true}},
-			expected: WriteOptions{MustNotExist: true},
-		},
-		{
-			name:     "CreateDirs provided",
-			options:  []WriteOptions{{CreateDirs: true}},
-			expected: WriteOptions{CreateDirs: true},
-		},
-		{
-			name: "order for bools doesn't matter",
-			options: []WriteOptions{
-				{CreateDirs: true},
-				{WithoutCreate: true},
-				{MustNotExist: true},
-			},
-			expected: WriteOptions{CreateDirs: true, WithoutCreate: true, MustNotExist: true},
-		},
+	// Read the file to ensure it was copied over
+	readFile, err := c.OpenFile(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when reading file: %v", err)
 	}
 
-	for _, test := range tests {
-		c.factories["fake"] = &fake{expectedWriteOptions: test.expected}
-		_, err := c.WriteFile(context.Background(), "fake://", "fake.txt", test.options...)
-		if err != nil {
-			t.Errorf("unexpected error for %q test: %v", test.name, err)
-		}
-		delete(c.factories, "fake")
-	}
-}
-
-func TestRmDirOptionsCompiledCorrectly(t *testing.T) {
-	tests := []struct {
-		name     string
-		options  []RmDirOptions
-		expected RmDirOptions
-	}{
-		{
-			name:     "nothing provided",
-			expected: RmDirOptions{},
-		},
-		{
-			name:     "NonEmpty provided",
-			options:  []RmDirOptions{{NonEmpty: true}},
-			expected: RmDirOptions{NonEmpty: true},
-		},
-		{
-			name: "order for bools doesn't matter",
-			options: []RmDirOptions{
-				{NonEmpty: true},
-				{NonEmpty: false},
-			},
-			expected: RmDirOptions{NonEmpty: true},
-		},
+	content, err := io.ReadAll(readFile)
+	if err != nil {
+		t.Errorf("unexpected error when reading file: %v", err)
 	}
 
-	for _, test := range tests {
-		c.factories["fake"] = &fake{expectedRmDirOptions: test.expected}
-		err := c.RmDir(context.Background(), "fake://", "fake.txt", test.options...)
-		if err != nil {
-			t.Errorf("unexpected error for %q test: %v", test.name, err)
-		}
-		delete(c.factories, "fake")
-	}
-}
-
-func TestMkDirOptionsCompiledCorrectly(t *testing.T) {
-	tests := []struct {
-		name     string
-		options  []MkDirOptions
-		expected MkDirOptions
-	}{
-		{
-			name:     "nothing provided",
-			expected: MkDirOptions{},
-		},
-		{
-			name:     "All options provided",
-			options:  []MkDirOptions{{CreateDirs: true, MustNotExist: true}},
-			expected: MkDirOptions{CreateDirs: true, MustNotExist: true},
-		},
-		{
-			name: "order for bools doesn't matter",
-			options: []MkDirOptions{
-				{CreateDirs: true},
-				{MustNotExist: true},
-				{},
-			},
-			expected: MkDirOptions{CreateDirs: true, MustNotExist: true},
-		},
+	if string(content) != "test" {
+		t.Errorf("unexpected content: %s", string(content))
 	}
 
-	for _, test := range tests {
-		c.factories["fake"] = &fake{expectedMkDirOptions: test.expected}
-		err := c.MkDir(context.Background(), "fake://", "fake.txt", test.options...)
-		if err != nil {
-			t.Errorf("unexpected error for %q test: %v", test.name, err)
-		}
-		delete(c.factories, "fake")
+	if err = readFile.Close(); err != nil {
+		t.Errorf("error closing file: %v", err)
+	}
+
+	// Delete the file
+	if err = c.DeleteFile(context.Background(), id, "test.txt"); err != nil {
+		t.Errorf("unexpected error when deleting file: %v", err)
 	}
 }

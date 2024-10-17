@@ -2,18 +2,14 @@ package cli
 
 import (
 	"context"
-	"io"
 	"os"
 	"path/filepath"
 
-	"github.com/gptscript-ai/workspace-provider/pkg/client"
 	"github.com/spf13/cobra"
 )
 
 type cpFile struct {
 	root *workspaceProvider
-
-	client.WriteOptions
 }
 
 func (c *cpFile) Customize(cmd *cobra.Command) {
@@ -40,12 +36,5 @@ func (c *cpFile) copyFile(ctx context.Context, workspaceID, src string) error {
 	}
 	defer source.Close()
 
-	file, err := c.root.client.WriteFile(ctx, workspaceID, filepath.Base(src), c.WriteOptions)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	_, err = io.Copy(file, source)
-	return err
+	return c.root.client.WriteFile(ctx, workspaceID, filepath.Base(src), source)
 }

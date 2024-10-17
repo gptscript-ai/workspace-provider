@@ -10,7 +10,6 @@ Parameter: workspace_ids: The IDs of the workspaces from which to copy data in a
 Name: Delete Workspace
 Description: Delete a workspace
 Parameter: workspace_id: The ID of the workspaces to delete
-Parameter: ignore_not_found: Whether to ignore the error if the workspace doesn't exist, default to false
 
 #!${GPTSCRIPT_TOOL_DIR}/bin/gptscript-go-tool rm "${WORKSPACE_ID}"
 
@@ -18,32 +17,17 @@ Parameter: ignore_not_found: Whether to ignore the error if the workspace doesn'
 Name: List Workspace Contents
 Description: List the files in a workspace
 Parameter: workspace_id: The ID of the workspaces to list
-Parameter: ls_sub_dir: The subdirectory to list
-Parameter: ls_non_recursive: Whether to list non-recursively
-Parameter: ls_exclude_hidden: Whether to exclude hidden files
-Parameter: ls_json: Whether to output in JSON format
+Parameter: ls_prefix: Only list files with this prefix
 
 #!${GPTSCRIPT_TOOL_DIR}/bin/gptscript-go-tool ls "${WORKSPACE_ID}"
 
 ---
-Name: Create Directory in Workspace
-Description: Create a new directory in a workspace
-Parameter: workspace_id: The ID of the workspaces to create the directory in
-Parameter: directory_name: The name of the directory to create
-Parameter: mk_dir_create_dirs: Whether to create the parent directories if they don't exist, default to false
-Parameter: mk_dir_must_not_exist: Whether to require that the directory doesn't exist before creating, default to false
+Name: Remove All With Prefix In Workspace
+Description: Remove all files with a given prefix
+Parameter: workspace_id: The ID of the workspaces to remove
+Parameter: prefix: The prefix to remove files with
 
-#!${GPTSCRIPT_TOOL_DIR}/bin/gptscript-go-tool mk-dir "${WORKSPACE_ID}" "${DIRECTORY_NAME}"
-
----
-Name: Remove Directory in Workspace
-Description: Remove a directory in a workspace
-Parameter: workspace_id: The ID of the workspaces to remove the directory from
-Parameter: directory_name: The name of the directory to remove
-Parameter: ignore_not_found: Whether to ignore the error if the directory doesn't exist, default to false
-Parameter: rm_dir_must_be_empty: Whether to require that the directory is empty before removing, default to false
-
-#!${GPTSCRIPT_TOOL_DIR}/bin/gptscript-go-tool rm-dir "${WORKSPACE_ID}" "${DIRECTORY_NAME}"
+#!${GPTSCRIPT_TOOL_DIR}/bin/gptscript-go-tool rm-with-prefix "${WORKSPACE_ID}" "${PREFIX}"
 
 ---
 Name: Write File in Workspace
@@ -51,9 +35,6 @@ Description: Write a file in a workspace
 Parameter: workspace_id: The ID of the workspaces to write the file in
 Parameter: file_path: The name of the file to write
 Parameter: file_contents: The contents of the file to write
-Parameter: write_file_must_not_exist: Whether to require that the file doesn't exist before writing, default to false
-Parameter: write_file_create_dirs: Whether to create the parent directories if they don't exist, default to false
-Parameter: write_file_without_create: Whether to require that the file doesn't exist before writing, default to false
 
 #!${GPTSCRIPT_TOOL_DIR}/bin/gptscript-go-tool write-file "${WORKSPACE_ID}" "${FILE_PATH}" "${FILE_CONTENTS}"
 
@@ -70,6 +51,5 @@ Name: Remove File in Workspace
 Description: Remove a file in a workspace
 Parameter: workspace_id: The ID of the workspaces to remove the file from
 Parameter: file_path: The name of the file to remove
-Parameter: ignore_not_found: Whether to ignore the error if the file doesn't exist, default to false
 
 #!${GPTSCRIPT_TOOL_DIR}/bin/gptscript-go-tool rm-file "${WORKSPACE_ID}" "${FILE_PATH}"
