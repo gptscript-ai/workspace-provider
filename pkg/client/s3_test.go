@@ -5,128 +5,109 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/transport/http"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-var (
-	directoryFactory   workspaceFactory
-	s3Factory          workspaceFactory
-	directoryTestingID string
-	s3TestingID        string
-	dirPrv             workspaceClient
-	s3Prv              *s3Provider
-	skipS3Tests        = os.Getenv("WORKSPACE_PROVIDER_S3_BUCKET") == ""
-)
-
-func TestMain(m *testing.M) {
-	directoryFactory = newDirectory("")
-	directoryTestingID = directoryFactory.Create()
-	dirPrv = directoryFactory.New(directoryTestingID)
-
-	if !skipS3Tests {
-		s3Factory, _ = newS3(context.Background(), os.Getenv("WORKSPACE_PROVIDER_S3_BUCKET"), os.Getenv("WORKSPACE_PROVIDER_S3_BASE_ENDPOINT"))
-		s3TestingID = s3Factory.Create()
-
-		s3Prv = s3Factory.New(s3TestingID).(*s3Provider)
+func TestCreateAndRmS3(t *testing.T) {
+	if skipS3Tests {
+		t.Skip("Skipping S3 tests")
 	}
 
-	exitCode := m.Run()
-
-	var errs []error
-	if err := directoryFactory.Rm(context.Background(), directoryTestingID); err != nil {
-		errs = append(errs, fmt.Errorf("error removing directory workspace: %v", err))
-	}
-
-	if !skipS3Tests {
-		if err := s3Factory.Rm(context.Background(), s3TestingID); err != nil {
-			errs = append(errs, fmt.Errorf("error removing s3 workspace: %v", err))
-		}
-	}
-
-	if err := errors.Join(errs...); err != nil {
-		panic(err)
-	}
-
-	os.Exit(exitCode)
-}
-
-func TestCreateAndRm(t *testing.T) {
-	id := directoryFactory.Create()
-	if !strings.HasPrefix(id, DirectoryProvider+"://") {
+	id := s3Factory.Create()
+	if !strings.HasPrefix(id, S3Provider+"://") {
 		t.Errorf("unexpected id: %s", id)
 	}
 
-	// The directory won't actually exist
-	if _, err := os.Stat(strings.TrimPrefix(id, DirectoryProvider+"://")); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("unexpcted error when checking if directory exists: %v", err)
+	bucket, dir, _ := strings.Cut(strings.TrimPrefix(id, S3Provider+"://"), "/")
+	testS3Provider := &s3Provider{
+		bucket: bucket,
+		client: s3Prv.client,
 	}
 
-	if err := directoryFactory.Rm(context.Background(), id); err != nil {
+	// Nothing should be created
+	var respErr *http.ResponseError
+	if _, err := testS3Provider.client.GetObject(context.Background(), &s3.GetObjectInput{Bucket: &testS3Provider.bucket, Key: &dir}); err == nil {
+		t.Errorf("expected error when checking if workspace exists")
+	} else if !errors.As(err, &respErr) || respErr.Response.StatusCode != 404 {
+		t.Errorf("unexpected error when checking if workspace exists: %v", err)
+	}
+
+	if err := s3Factory.Rm(context.Background(), id); err != nil {
 		t.Errorf("unexpected error when removing workspace: %v", err)
 	}
 }
 
-func TestWriteAndDeleteFileInDirectory(t *testing.T) {
+func TestWriteAndDeleteFileInS3(t *testing.T) {
+	if skipS3Tests {
+		t.Skip("Skipping S3 tests")
+	}
+
 	// Copy a file into the workspace
-	if err := dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test")); err != nil {
+	if err := s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test")); err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
 
 	// Ensure the file actually exists
-	if _, err := os.Stat(filepath.Join(strings.TrimPrefix(directoryTestingID, DirectoryProvider+"://"), "test.txt")); err != nil {
+	if _, err := s3Prv.client.GetObject(context.Background(), &s3.GetObjectInput{Bucket: &s3Prv.bucket, Key: aws.String(fmt.Sprintf("%s/%s", s3Prv.dir, "test.txt"))}); err != nil {
 		t.Errorf("error when checking if file exists: %v", err)
 	}
 
 	// Delete the file
-	if err := dirPrv.DeleteFile(context.Background(), "test.txt"); err != nil {
+	if err := s3Prv.DeleteFile(context.Background(), "test.txt"); err != nil {
 		t.Errorf("unexpected error when deleting file: %v", err)
 	}
 
 	// Ensure the file no longer exists
-	if _, err := os.Stat(filepath.Join(strings.TrimPrefix(directoryTestingID, DirectoryProvider+"://"), "test.txt")); !errors.Is(err, os.ErrNotExist) {
+	if _, err := s3Prv.client.GetObject(context.Background(), &s3.GetObjectInput{Bucket: &s3Prv.bucket, Key: aws.String(fmt.Sprintf("%s/%s", s3Prv.dir, "test.txt"))}); err == nil {
 		t.Errorf("file should not exist after deleting: %v", err)
 	}
 }
 
-func TestWriteAndDeleteFileInDirectoryWithSubDir(t *testing.T) {
+func TestWriteAndDeleteFileInS3WithSubDir(t *testing.T) {
+	if skipS3Tests {
+		t.Skip("Skipping S3 tests")
+	}
+
 	filePath := filepath.Join("subdir", "test.txt")
 	// Copy a file into the workspace
-	if err := dirPrv.WriteFile(context.Background(), filePath, strings.NewReader("test")); err != nil {
+	if err := s3Prv.WriteFile(context.Background(), filePath, strings.NewReader("test")); err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
 
 	// Ensure the file actually exists
-	if _, err := os.Stat(filepath.Join(strings.TrimPrefix(directoryTestingID, DirectoryProvider+"://"), filePath)); err != nil {
+	if _, err := s3Prv.client.GetObject(context.Background(), &s3.GetObjectInput{Bucket: &s3Prv.bucket, Key: aws.String(fmt.Sprintf("%s/%s", s3Prv.dir, filePath))}); err != nil {
 		t.Errorf("error when checking if file exists: %v", err)
 	}
 
 	// Delete the file
-	if err := dirPrv.DeleteFile(context.Background(), filePath); err != nil {
+	if err := s3Prv.DeleteFile(context.Background(), filePath); err != nil {
 		t.Errorf("unexpected error when deleting file: %v", err)
 	}
 
 	// Ensure the file no longer exists
-	if _, err := os.Stat(filepath.Join(strings.TrimPrefix(directoryTestingID, DirectoryProvider+"://"), filePath)); !errors.Is(err, os.ErrNotExist) {
+	if _, err := s3Prv.client.GetObject(context.Background(), &s3.GetObjectInput{Bucket: &s3Prv.bucket, Key: aws.String(fmt.Sprintf("%s/%s", s3Prv.dir, filePath))}); err == nil {
 		t.Errorf("file should not exist after deleting: %v", err)
-	}
-
-	// Cleanup the directory
-	if err := os.Remove(filepath.Join(strings.TrimPrefix(directoryTestingID, DirectoryProvider+"://"), "subdir")); err != nil {
-		t.Errorf("error when removing subdir directory: %v", err)
 	}
 }
 
-func TestFileRead(t *testing.T) {
-	if err := dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test")); err != nil {
+func TestFileReadFromS3(t *testing.T) {
+	if skipS3Tests {
+		t.Skip("Skipping S3 tests")
+	}
+
+	if err := s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test")); err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
 
-	readFile, err := dirPrv.OpenFile(context.Background(), "test.txt")
+	readFile, err := s3Prv.OpenFile(context.Background(), "test.txt")
 	if err != nil {
 		t.Errorf("unexpected error when reading file: %v", err)
 	}
@@ -145,29 +126,33 @@ func TestFileRead(t *testing.T) {
 	}
 
 	// Delete the file
-	if err = dirPrv.DeleteFile(context.Background(), "test.txt"); err != nil {
+	if err = s3Prv.DeleteFile(context.Background(), "test.txt"); err != nil {
 		t.Errorf("unexpected error when deleting file: %v", err)
 	}
 }
 
-func TestLs(t *testing.T) {
+func TestLsS3(t *testing.T) {
+	if skipS3Tests {
+		t.Skip("Skipping S3 tests")
+	}
+
 	// Write a bunch of files to the directory. They can be blank
 	for i := range 7 {
 		fileName := fmt.Sprintf("test%d.txt", i)
-		if err := dirPrv.WriteFile(context.Background(), fileName, strings.NewReader("test")); err != nil {
+		if err := s3Prv.WriteFile(context.Background(), fileName, strings.NewReader("test")); err != nil {
 			t.Fatalf("error getting file to write: %v", err)
 		}
 
 		// deferring here is fine because these files shouldn't be deleted until the end of the test
 		defer func() {
-			err := dirPrv.DeleteFile(context.Background(), fileName)
+			err := s3Prv.DeleteFile(context.Background(), fileName)
 			if err != nil {
 				t.Errorf("unexpected error when deleting file %s: %v", fileName, err)
 			}
 		}()
 	}
 
-	contents, err := dirPrv.Ls(context.Background(), "")
+	contents, err := s3Prv.Ls(context.Background(), "")
 	if err != nil {
 		t.Fatalf("unexpected error when listing files: %v", err)
 	}
@@ -193,9 +178,13 @@ func TestLs(t *testing.T) {
 	}
 }
 
-func TestLsWithSubDirs(t *testing.T) {
+func TestLsWithSubDirsS3(t *testing.T) {
+	if skipS3Tests {
+		t.Skip("Skipping S3 tests")
+	}
+
 	defer func() {
-		err := dirPrv.RemoveAllWithPrefix(context.Background(), "testDir")
+		err := s3Prv.RemoveAllWithPrefix(context.Background(), "testDir")
 		if err != nil {
 			t.Errorf("unexpected error when deleting file %s: %v", "testDir", err)
 		}
@@ -205,22 +194,22 @@ func TestLsWithSubDirs(t *testing.T) {
 	for i := range 7 {
 		fileName := fmt.Sprintf("test%d.txt", i)
 		if i >= 3 {
-			fileName = fmt.Sprintf("testDir%s%s", string(os.PathSeparator), fileName)
+			fileName = fmt.Sprintf("testDir/%s", fileName)
 		}
-		if err := dirPrv.WriteFile(context.Background(), fileName, strings.NewReader("test")); err != nil {
+		if err := s3Prv.WriteFile(context.Background(), fileName, strings.NewReader("test")); err != nil {
 			t.Fatalf("error getting file to write: %v", err)
 		}
 
 		// deferring here is fine because these files shouldn't be deleted until the end of the test
 		defer func() {
-			err := dirPrv.DeleteFile(context.Background(), fileName)
+			err := s3Prv.DeleteFile(context.Background(), fileName)
 			if err != nil {
 				t.Errorf("unexpected error when deleting file %s: %v", fileName, err)
 			}
 		}()
 	}
 
-	contents, err := dirPrv.Ls(context.Background(), "")
+	contents, err := s3Prv.Ls(context.Background(), "")
 	if err != nil {
 		t.Fatalf("unexpected error when listing files: %v", err)
 	}
@@ -246,9 +235,13 @@ func TestLsWithSubDirs(t *testing.T) {
 	}
 }
 
-func TestLsWithPrefix(t *testing.T) {
+func TestLsWithPrefixS3(t *testing.T) {
+	if skipS3Tests {
+		t.Skip("Skipping S3 tests")
+	}
+
 	defer func() {
-		err := dirPrv.RemoveAllWithPrefix(context.Background(), "testDir")
+		err := s3Prv.RemoveAllWithPrefix(context.Background(), "testDir")
 		if err != nil {
 			t.Errorf("unexpected error when deleting file %s: %v", "testDir", err)
 		}
@@ -258,22 +251,22 @@ func TestLsWithPrefix(t *testing.T) {
 	for i := range 7 {
 		fileName := fmt.Sprintf("test%d.txt", i)
 		if i >= 3 {
-			fileName = fmt.Sprintf("testDir%s%s", string(os.PathSeparator), fileName)
+			fileName = fmt.Sprintf("testDir/%s", fileName)
 		}
-		if err := dirPrv.WriteFile(context.Background(), fileName, strings.NewReader("test")); err != nil {
+		if err := s3Prv.WriteFile(context.Background(), fileName, strings.NewReader("test")); err != nil {
 			t.Fatalf("error getting file to write: %v", err)
 		}
 
 		// deferring here is fine because these files shouldn't be deleted until the end of the test
 		defer func() {
-			err := dirPrv.DeleteFile(context.Background(), fileName)
+			err := s3Prv.DeleteFile(context.Background(), fileName)
 			if err != nil {
 				t.Errorf("unexpected error when deleting file %s: %v", fileName, err)
 			}
 		}()
 	}
 
-	contents, err := dirPrv.Ls(context.Background(), "testDir")
+	contents, err := s3Prv.Ls(context.Background(), "testDir")
 	if err != nil {
 		t.Fatalf("unexpected error when listing files: %v", err)
 	}
@@ -286,42 +279,46 @@ func TestLsWithPrefix(t *testing.T) {
 	if !reflect.DeepEqual(
 		contents,
 		[]string{
-			filepath.Join("testDir", "test3.txt"),
-			filepath.Join("testDir", "test4.txt"),
-			filepath.Join("testDir", "test5.txt"),
-			filepath.Join("testDir", "test6.txt"),
+			"testDir/test3.txt",
+			"testDir/test4.txt",
+			"testDir/test5.txt",
+			"testDir/test6.txt",
 		},
 	) {
 		t.Errorf("unexpected contents: %v", contents)
 	}
 }
 
-func TestRemoveAllWithPrefix(t *testing.T) {
+func TestRemoveAllWithPrefixS3(t *testing.T) {
+	if skipS3Tests {
+		t.Skip("Skipping S3 tests")
+	}
+
 	// Write a bunch of files to the directory. They can be blank
 	for i := range 7 {
 		fileName := fmt.Sprintf("test%d.txt", i)
 		if i >= 3 {
-			fileName = fmt.Sprintf("testDir%s%s", string(os.PathSeparator), fileName)
+			fileName = fmt.Sprintf("testDir/%s", fileName)
 		}
-		if err := dirPrv.WriteFile(context.Background(), fileName, strings.NewReader("test")); err != nil {
+		if err := s3Prv.WriteFile(context.Background(), fileName, strings.NewReader("test")); err != nil {
 			t.Fatalf("error getting file to write: %v", err)
 		}
 
 		// deferring here is fine because these files shouldn't be deleted until the end of the test
 		defer func() {
-			err := dirPrv.DeleteFile(context.Background(), fileName)
+			err := s3Prv.DeleteFile(context.Background(), fileName)
 			if fnf := (*NotFoundError)(nil); err != nil && !errors.As(err, &fnf) {
 				t.Errorf("unexpected error when deleting file %s: %v", fileName, err)
 			}
 		}()
 	}
 
-	err := dirPrv.RemoveAllWithPrefix(context.Background(), "testDir")
+	err := s3Prv.RemoveAllWithPrefix(context.Background(), "testDir")
 	if err != nil {
 		t.Errorf("unexpected error when deleting all with prefix testDir: %v", err)
 	}
 
-	contents, err := dirPrv.Ls(context.Background(), "")
+	contents, err := s3Prv.Ls(context.Background(), "")
 	if err != nil {
 		t.Fatalf("unexpected error when listing files: %v", err)
 	}
@@ -343,9 +340,13 @@ func TestRemoveAllWithPrefix(t *testing.T) {
 	}
 }
 
-func TestOpeningFileDNENoError(t *testing.T) {
+func TestOpeningFileDNENoErrorS3(t *testing.T) {
+	if skipS3Tests {
+		t.Skip("Skipping S3 tests")
+	}
+
 	var notFoundError *NotFoundError
-	if file, err := dirPrv.OpenFile(context.Background(), "test.txt"); err == nil {
+	if file, err := s3Prv.OpenFile(context.Background(), "test.txt"); err == nil {
 		_ = file.Close()
 		t.Errorf("expected error when deleting file that doesn't exist")
 	} else if !errors.As(err, &notFoundError) {

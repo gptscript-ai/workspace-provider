@@ -18,32 +18,23 @@ const (
 )
 
 type workspaceFactory interface {
-	New(context.Context, string) workspaceClient
-	Create(context.Context) (string, error)
+	New(string) workspaceClient
+	Create() string
 	Rm(context.Context, string) error
 }
 
 type workspaceClient interface {
-	Ls(context.Context, LsOptions) (WorkspaceContent, error)
+	Ls(context.Context, string) ([]string, error)
 	DeleteFile(context.Context, string) error
 	OpenFile(context.Context, string) (io.ReadCloser, error)
-	WriteFile(context.Context, string, WriteOptions) (io.WriteCloser, error)
-	MkDir(context.Context, string, MkDirOptions) error
-	RmDir(context.Context, string, RmDirOptions) error
+	WriteFile(context.Context, string, io.Reader) error
+	RemoveAllWithPrefix(context.Context, string) error
 }
 
 type Options struct {
 	DirectoryDataHome string
-	S3DataHome        string
-}
-
-type WorkspaceContent struct {
-	ID, Path, FileName string
-	Children           []WorkspaceContent
-}
-
-func (c *WorkspaceContent) String() string {
-	return filepath.Join(c.Path, c.FileName)
+	S3BucketName      string
+	S3BaseEndpoint    string
 }
 
 func complete(opts ...Options) Options {
@@ -53,8 +44,11 @@ func complete(opts ...Options) Options {
 		if o.DirectoryDataHome != "" {
 			opt.DirectoryDataHome = o.DirectoryDataHome
 		}
-		if o.S3DataHome != "" {
-			opt.S3DataHome = o.S3DataHome
+		if o.S3BucketName != "" {
+			opt.S3BucketName = o.S3BucketName
+		}
+		if o.S3BaseEndpoint != "" {
+			opt.S3BaseEndpoint = o.S3BaseEndpoint
 		}
 	}
 
@@ -65,14 +59,23 @@ func complete(opts ...Options) Options {
 	return opt
 }
 
-func New(opts ...Options) *Client {
+func New(ctx context.Context, opts ...Options) (*Client, error) {
 	opt := complete(opts...)
+
+	var s3 workspaceFactory
+	if opt.S3BucketName != "" {
+		var err error
+		s3, err = newS3(ctx, opt.S3BucketName, opt.S3BaseEndpoint)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return &Client{
 		factories: map[string]workspaceFactory{
 			DirectoryProvider: newDirectory(opt.DirectoryDataHome),
-			S3Provider:        newS3(opt.S3DataHome),
+			S3Provider:        s3,
 		},
-	}
+	}, nil
 }
 
 type Client struct {
@@ -89,15 +92,11 @@ func (c *Client) Create(ctx context.Context, provider string, fromWorkspaces ...
 		return "", err
 	}
 
-	id, err := factory.Create(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	destClient := factory.New(ctx, id)
+	id := factory.Create()
+	destClient := factory.New(id)
 
 	for _, fromWorkspace := range fromWorkspaces {
-		sourceClient, err := c.getClient(ctx, fromWorkspace)
+		sourceClient, err := c.getClient(fromWorkspace)
 		if err != nil {
 			return "", err
 		}
@@ -123,26 +122,17 @@ func (c *Client) Rm(ctx context.Context, id string) error {
 	return f.Rm(ctx, id)
 }
 
-func (c *Client) Ls(ctx context.Context, id string, opts ...LsOptions) (WorkspaceContent, error) {
-	wc, err := c.getClient(ctx, id)
+func (c *Client) Ls(ctx context.Context, id, prefix string) ([]string, error) {
+	wc, err := c.getClient(id)
 	if err != nil {
-		return WorkspaceContent{}, err
+		return nil, err
 	}
 
-	var opt LsOptions
-	for _, o := range opts {
-		if o.SubDir != "" {
-			opt.SubDir = o.SubDir
-		}
-		opt.NonRecursive = opt.NonRecursive || o.NonRecursive
-		opt.ExcludeHidden = opt.ExcludeHidden || o.ExcludeHidden
-	}
-
-	return wc.Ls(ctx, opt)
+	return wc.Ls(ctx, prefix)
 }
 
 func (c *Client) DeleteFile(ctx context.Context, id, file string) error {
-	wc, err := c.getClient(ctx, id)
+	wc, err := c.getClient(id)
 	if err != nil {
 		return err
 	}
@@ -151,7 +141,7 @@ func (c *Client) DeleteFile(ctx context.Context, id, file string) error {
 }
 
 func (c *Client) OpenFile(ctx context.Context, id, fileName string) (io.ReadCloser, error) {
-	wc, err := c.getClient(ctx, id)
+	wc, err := c.getClient(id)
 	if err != nil {
 		return nil, err
 	}
@@ -159,52 +149,25 @@ func (c *Client) OpenFile(ctx context.Context, id, fileName string) (io.ReadClos
 	return wc.OpenFile(ctx, fileName)
 }
 
-func (c *Client) WriteFile(ctx context.Context, id, fileName string, opts ...WriteOptions) (io.WriteCloser, error) {
-	wc, err := c.getClient(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	var opt WriteOptions
-	for _, o := range opts {
-		opt.CreateDirs = opt.CreateDirs || o.CreateDirs
-		opt.WithoutCreate = opt.WithoutCreate || o.WithoutCreate
-		opt.MustNotExist = opt.MustNotExist || o.MustNotExist
-	}
-
-	return wc.WriteFile(ctx, fileName, opt)
-}
-
-func (c *Client) MkDir(ctx context.Context, id, dir string, opts ...MkDirOptions) error {
-	wc, err := c.getClient(ctx, id)
+func (c *Client) WriteFile(ctx context.Context, id, fileName string, reader io.Reader) error {
+	wc, err := c.getClient(id)
 	if err != nil {
 		return err
 	}
 
-	opt := MkDirOptions{}
-	for _, o := range opts {
-		opt.MustNotExist = opt.MustNotExist || o.MustNotExist
-		opt.CreateDirs = opt.CreateDirs || o.CreateDirs
-	}
-
-	return wc.MkDir(ctx, dir, opt)
+	return wc.WriteFile(ctx, fileName, reader)
 }
 
-func (c *Client) RmDir(ctx context.Context, id, dir string, opts ...RmDirOptions) error {
-	wc, err := c.getClient(ctx, id)
+func (c *Client) RemoveAllWithPrefix(ctx context.Context, id, prefix string) error {
+	wc, err := c.getClient(id)
 	if err != nil {
 		return err
 	}
 
-	var opt RmDirOptions
-	for _, o := range opts {
-		opt.NonEmpty = opt.NonEmpty || o.NonEmpty
-	}
-
-	return wc.RmDir(ctx, dir, opt)
+	return wc.RemoveAllWithPrefix(ctx, prefix)
 }
 
-func (c *Client) getClient(ctx context.Context, id string) (workspaceClient, error) {
+func (c *Client) getClient(id string) (workspaceClient, error) {
 	provider, _, ok := strings.Cut(id, "://")
 	if !ok {
 		return nil, fmt.Errorf("invalid workspace id: %s", id)
@@ -215,12 +178,12 @@ func (c *Client) getClient(ctx context.Context, id string) (workspaceClient, err
 		return nil, err
 	}
 
-	return f.New(ctx, id), nil
+	return f.New(id), nil
 }
 
 func (c *Client) getFactory(provider string) (workspaceFactory, error) {
 	factory, ok := c.factories[provider]
-	if !ok {
+	if !ok || factory == nil {
 		return nil, fmt.Errorf("invalid workspace provider: %s", provider)
 	}
 
@@ -228,13 +191,13 @@ func (c *Client) getFactory(provider string) (workspaceFactory, error) {
 }
 
 func cp(ctx context.Context, source, dest workspaceClient) error {
-	contents, err := source.Ls(ctx, LsOptions{})
+	contents, err := source.Ls(ctx, "")
 	if err != nil {
 		return err
 	}
 
-	for _, entry := range contents.Children {
-		if entry.FileName != "" {
+	for _, entry := range contents {
+		if entry != "" {
 			if err = cpFile(ctx, entry, source, dest); err != nil {
 				return err
 			}
@@ -244,23 +207,12 @@ func cp(ctx context.Context, source, dest workspaceClient) error {
 	return nil
 }
 
-func cpFile(ctx context.Context, entry WorkspaceContent, source, dest workspaceClient) error {
-	sourceFile, err := source.OpenFile(ctx, entry.String())
+func cpFile(ctx context.Context, entry string, source, dest workspaceClient) error {
+	sourceFile, err := source.OpenFile(ctx, entry)
 	if err != nil {
 		return err
 	}
 	defer sourceFile.Close()
 
-	destFile, err := dest.WriteFile(ctx, entry.String(), WriteOptions{CreateDirs: true})
-	if err != nil {
-		return err
-	}
-	defer destFile.Close()
-
-	_, err = io.Copy(destFile, sourceFile)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return dest.WriteFile(ctx, entry, sourceFile)
 }

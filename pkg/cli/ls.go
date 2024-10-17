@@ -1,18 +1,16 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
+	"strings"
 
-	"github.com/gptscript-ai/workspace-provider/pkg/client"
 	"github.com/spf13/cobra"
 )
 
 type ls struct {
 	root *workspaceProvider
 
-	client.LsOptions
-	JSON bool `usage:"Output as JSON" env:"LS_JSON"`
+	Prefix string `usage:"Only list files with this prefix" env:"LS_PREFIX"`
 }
 
 func (l *ls) Customize(c *cobra.Command) {
@@ -22,42 +20,20 @@ func (l *ls) Customize(c *cobra.Command) {
 }
 
 func (l *ls) Run(cmd *cobra.Command, args []string) error {
-	var workspaceContents []client.WorkspaceContent
 	for _, arg := range args {
-		contents, err := l.root.client.Ls(cmd.Context(), arg, l.LsOptions)
+		contents, err := l.root.client.Ls(cmd.Context(), arg, l.Prefix)
 		if err != nil {
 			return err
 		}
 
-		if l.JSON {
-			workspaceContents = append(workspaceContents, contents)
-			continue
-		}
-
-		printContent(contents)
-	}
-
-	if l.JSON {
-		b, err := json.Marshal(workspaceContents)
-		if err != nil {
-			return fmt.Errorf("failed to marshal workspace contents: %w", err)
-		}
-
-		fmt.Println(string(b))
+		printContent(arg, contents)
 	}
 
 	return nil
 }
 
-func printContent(content client.WorkspaceContent) {
-	fmt.Printf("%s:\n", content.ID)
-	fmt.Printf("%s:\n", content.Path)
-	for _, child := range content.Children {
-		if child.FileName != "" {
-			fmt.Printf("%s\n", child.FileName)
-		} else if child.Path != "" {
-			printContent(child)
-		}
-	}
+func printContent(id string, content []string) {
+	fmt.Printf("%s:\n", id)
+	fmt.Println(strings.Join(content, "\n"))
 	fmt.Print("\n\n")
 }
