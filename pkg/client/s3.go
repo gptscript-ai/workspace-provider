@@ -135,16 +135,33 @@ func (s *s3Provider) OpenFile(ctx context.Context, filePath string) (io.ReadClos
 }
 
 func (s *s3Provider) WriteFile(ctx context.Context, fileName string, reader io.Reader) error {
-	b, err := io.ReadAll(reader)
-	if err != nil {
-		return err
+	var contentLength int64
+	switch r := reader.(type) {
+	case io.Seeker:
+		var err error
+		contentLength, err = r.Seek(0, io.SeekEnd)
+		if err != nil {
+			return err
+		}
+
+		_, err = r.Seek(0, io.SeekStart)
+		if err != nil {
+			return err
+		}
+	default:
+		b, err := io.ReadAll(reader)
+		if err != nil {
+			return err
+		}
+		contentLength = int64(len(b))
+		reader = bytes.NewReader(b)
 	}
 
-	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{
+	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:        aws.String(s.bucket),
 		Key:           aws.String(fmt.Sprintf("%s/%s", s.dir, fileName)),
-		ContentLength: aws.Int64(int64(len(b))),
-		Body:          bytes.NewReader(b),
+		ContentLength: aws.Int64(contentLength),
+		Body:          reader,
 	})
 
 	return err

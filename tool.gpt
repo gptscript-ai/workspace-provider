@@ -1,54 +1,67 @@
 Name: Create Workspace
+Tools: Server
 Description: Create a new workspace
 Parameter: provider: The workspace provider to use, default to 'directory'
 Parameter: workspace_ids: The IDs of the workspaces from which to copy data in a comma-separated list
 
-#!${GPTSCRIPT_TOOL_DIR}/bin/gptscript-go-tool create --provider "${PROVIDER}" "${WORKSPACE_IDS}"
+#!http://Server.daemon.gptscript.local/create
 
 ---
 Name: Delete Workspace
+Tools: Server
 Description: Delete a workspace
 Parameter: workspace_id: The ID of the workspaces to delete
 
-#!${GPTSCRIPT_TOOL_DIR}/bin/gptscript-go-tool rm "${WORKSPACE_ID}"
+#!http://Server.daemon.gptscript.local/rm/${WORKSPACE_ID}
 
 ---
 Name: List Workspace Contents
+Tools: Server
 Description: List the files in a workspace
 Parameter: workspace_id: The ID of the workspaces to list
 Parameter: ls_prefix: Only list files with this prefix
 
-#!${GPTSCRIPT_TOOL_DIR}/bin/gptscript-go-tool ls "${WORKSPACE_ID}"
+#!http://Server.daemon.gptscript.local/ls/${WORKSPACE_ID}/${LS_PREFIX}
 
 ---
 Name: Remove All With Prefix In Workspace
+Tools: Server
 Description: Remove all files with a given prefix
 Parameter: workspace_id: The ID of the workspaces to remove
 Parameter: prefix: The prefix to remove files with
 
-#!${GPTSCRIPT_TOOL_DIR}/bin/gptscript-go-tool rm-with-prefix "${WORKSPACE_ID}" "${PREFIX}"
+#!http://Server.daemon.gptscript.local/rm-with-prefix/${WORKSPACE_ID}/${PREFIX}
 
 ---
 Name: Write File in Workspace
+Tools: Server
 Description: Write a file in a workspace
 Parameter: workspace_id: The ID of the workspaces to write the file in
 Parameter: file_path: The name of the file to write
-Parameter: file_contents: The contents of the file to write
+Parameter: body: The contents of the file to write
 
-#!${GPTSCRIPT_TOOL_DIR}/bin/gptscript-go-tool write-file "${WORKSPACE_ID}" "${FILE_PATH}" "${FILE_CONTENTS}"
+#!http://Server.daemon.gptscript.local/write-file/${WORKSPACE_ID}/${FILE_PATH}
 
 ---
 Name: Read File in Workspace
+Tools: Server
 Description: Read a file in a workspace
 Parameter: workspace_id: The ID of the workspaces to read the file from
 Parameter: file_path: The name of the file to read
 
-#!${GPTSCRIPT_TOOL_DIR}/bin/gptscript-go-tool read-file "${WORKSPACE_ID}" "${FILE_PATH}"
+#!http://Server.daemon.gptscript.local/read-file/${WORKSPACE_ID}/${FILE_PATH}
 
 ---
 Name: Remove File in Workspace
+Tools: Server
 Description: Remove a file in a workspace
 Parameter: workspace_id: The ID of the workspaces to remove the file from
 Parameter: file_path: The name of the file to remove
 
-#!${GPTSCRIPT_TOOL_DIR}/bin/gptscript-go-tool rm-file "${WORKSPACE_ID}" "${FILE_PATH}"
+#!http://Server.daemon.gptscript.local/rm-file/${WORKSPACE_ID}/${FILE_PATH}
+
+---
+Name: Server
+Description: Start the workspace-provider server
+
+#!sys.daemon (path=/healthz) ${GPTSCRIPT_TOOL_DIR}/bin/gptscript-go-tool server --port ${PORT}

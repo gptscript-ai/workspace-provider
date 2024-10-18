@@ -29,6 +29,7 @@ func New() *cobra.Command {
 		&writeFile{root: w},
 		&rmFile{root: w},
 		&readFile{root: w},
+		&server{root: w},
 	)
 
 	c.CompletionOptions.HiddenDefaultCmd = true

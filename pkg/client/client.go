@@ -25,9 +25,9 @@ type workspaceFactory interface {
 
 type workspaceClient interface {
 	Ls(context.Context, string) ([]string, error)
-	DeleteFile(context.Context, string) error
 	OpenFile(context.Context, string) (io.ReadCloser, error)
 	WriteFile(context.Context, string, io.Reader) error
+	DeleteFile(context.Context, string) error
 	RemoveAllWithPrefix(context.Context, string) error
 }
 
@@ -87,6 +87,10 @@ func (c *Client) Providers() []string {
 }
 
 func (c *Client) Create(ctx context.Context, provider string, fromWorkspaces ...string) (string, error) {
+	if provider == "" {
+		provider = DirectoryProvider
+	}
+
 	factory, err := c.getFactory(provider)
 	if err != nil {
 		return "", err
