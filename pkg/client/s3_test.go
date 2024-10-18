@@ -21,7 +21,11 @@ func TestCreateAndRmS3(t *testing.T) {
 		t.Skip("Skipping S3 tests")
 	}
 
-	id := s3Factory.Create()
+	id, err := s3Factory.Create()
+	if err != nil {
+		t.Errorf("error creating workspace: %v", err)
+	}
+
 	if !strings.HasPrefix(id, S3Provider+"://") {
 		t.Errorf("unexpected id: %s", id)
 	}

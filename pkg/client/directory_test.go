@@ -24,13 +24,19 @@ var (
 )
 
 func TestMain(m *testing.M) {
+	var err error
 	directoryFactory = newDirectory("")
-	directoryTestingID = directoryFactory.Create()
+	directoryTestingID, err = directoryFactory.Create()
+	if err != nil {
+		panic(err)
+	}
+
 	dirPrv = directoryFactory.New(directoryTestingID)
 
 	if !skipS3Tests {
 		s3Factory, _ = newS3(context.Background(), os.Getenv("WORKSPACE_PROVIDER_S3_BUCKET"), os.Getenv("WORKSPACE_PROVIDER_S3_BASE_ENDPOINT"))
-		s3TestingID = s3Factory.Create()
+		// This won't ever error because it doesn't create anything.
+		s3TestingID, _ = s3Factory.Create()
 
 		s3Prv = s3Factory.New(s3TestingID).(*s3Provider)
 	}
@@ -56,18 +62,27 @@ func TestMain(m *testing.M) {
 }
 
 func TestCreateAndRm(t *testing.T) {
-	id := directoryFactory.Create()
+	id, err := directoryFactory.Create()
+	if err != nil {
+		t.Errorf("error creating workspace: %v", err)
+	}
+
 	if !strings.HasPrefix(id, DirectoryProvider+"://") {
 		t.Errorf("unexpected id: %s", id)
 	}
 
-	// The directory won't actually exist
-	if _, err := os.Stat(strings.TrimPrefix(id, DirectoryProvider+"://")); !errors.Is(err, os.ErrNotExist) {
+	// The directory should exist
+	if _, err := os.Stat(strings.TrimPrefix(id, DirectoryProvider+"://")); err != nil {
 		t.Errorf("unexpcted error when checking if directory exists: %v", err)
 	}
 
 	if err := directoryFactory.Rm(context.Background(), id); err != nil {
 		t.Errorf("unexpected error when removing workspace: %v", err)
+	}
+
+	// The directory should no longer exist
+	if _, err := os.Stat(strings.TrimPrefix(id, DirectoryProvider+"://")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("unexpected error when checking if directory exists: %v", err)
 	}
 }
 
