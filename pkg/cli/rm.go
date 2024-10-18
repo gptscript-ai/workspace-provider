@@ -26,7 +26,6 @@ func (r *rm) Run(cmd *cobra.Command, args []string) error {
 		}
 	}
 	for _, arg := range args {
-		fmt.Println(arg)
 		if err := r.root.client.Rm(cmd.Context(), arg); err != nil {
 			return err
 		}
