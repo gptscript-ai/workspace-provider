@@ -1,10 +1,9 @@
 Name: Create Workspace
 Description: Create a new workspace
 Parameter: provider: The workspace provider to use, default to 'directory'
-Parameter: data_home: The data home directory or bucket name
 Parameter: workspace_ids: The IDs of the workspaces from which to copy data in a comma-separated list
 
-#!${GPTSCRIPT_TOOL_DIR}/bin/gptscript-go-tool create --data-home "${DATA_HOME}" --provider "${PROVIDER}" "${WORKSPACE_IDS}"
+#!${GPTSCRIPT_TOOL_DIR}/bin/gptscript-go-tool create --provider "${PROVIDER}" "${WORKSPACE_IDS}"
 
 ---
 Name: Delete Workspace
