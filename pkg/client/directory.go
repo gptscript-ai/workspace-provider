@@ -2,7 +2,9 @@ package client
 
 import (
 	"context"
+	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -73,6 +75,9 @@ func (d *directoryProvider) DeleteFile(_ context.Context, file string) error {
 	// Check that the file is safe to delete
 	f, err := safeopen.OpenBeneath(d.dataHome, file)
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
 		return newNotFoundError(DirectoryProvider+"://"+d.dataHome, file)
 	}
 	if err = f.Close(); err != nil {
