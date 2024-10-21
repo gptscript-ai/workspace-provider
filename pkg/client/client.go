@@ -18,7 +18,7 @@ const (
 )
 
 type workspaceFactory interface {
-	New(string) workspaceClient
+	New(string) (workspaceClient, error)
 	Create() (string, error)
 	Rm(context.Context, string) error
 }
@@ -101,7 +101,10 @@ func (c *Client) Create(ctx context.Context, provider string, fromWorkspaces ...
 		return "", err
 	}
 
-	destClient := factory.New(id)
+	destClient, err := factory.New(id)
+	if err != nil {
+		return "", err
+	}
 
 	for _, fromWorkspace := range fromWorkspaces {
 		sourceClient, err := c.getClient(fromWorkspace)
@@ -186,7 +189,7 @@ func (c *Client) getClient(id string) (workspaceClient, error) {
 		return nil, err
 	}
 
-	return f.New(id), nil
+	return f.New(id)
 }
 
 func (c *Client) getFactory(provider string) (workspaceFactory, error) {
