@@ -31,14 +31,15 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	dirPrv = directoryFactory.New(directoryTestingID)
+	dirPrv, _ = directoryFactory.New(directoryTestingID)
 
 	if !skipS3Tests {
 		s3Factory, _ = newS3(context.Background(), os.Getenv("WORKSPACE_PROVIDER_S3_BUCKET"), os.Getenv("WORKSPACE_PROVIDER_S3_BASE_ENDPOINT"))
 		// This won't ever error because it doesn't create anything.
 		s3TestingID, _ = s3Factory.Create()
 
-		s3Prv = s3Factory.New(s3TestingID).(*s3Provider)
+		s3Client, _ := s3Factory.New(s3TestingID)
+		s3Prv = s3Client.(*s3Provider)
 	}
 
 	exitCode := m.Run()

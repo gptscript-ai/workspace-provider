@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/adrg/xdg"
+	"github.com/google/safeopen"
 	"github.com/google/uuid"
 )
 
@@ -24,14 +25,25 @@ type directoryProvider struct {
 	dataHome string
 }
 
-func (d *directoryProvider) New(id string) workspaceClient {
+func (d *directoryProvider) New(id string) (workspaceClient, error) {
 	id = strings.TrimPrefix(id, DirectoryProvider+"://")
 	if !filepath.IsAbs(id) {
 		id = filepath.Join(d.dataHome, id)
 	}
+
+	// Check that the directory is safe to open
+	f, err := safeopen.OpenBeneath(d.dataHome, strings.TrimPrefix(id, d.dataHome))
+	if err != nil {
+		return nil, err
+	}
+
+	if err = f.Close(); err != nil {
+		return nil, err
+	}
+
 	return &directoryProvider{
 		dataHome: id,
-	}
+	}, nil
 }
 
 func (d *directoryProvider) Create() (string, error) {
@@ -45,10 +57,12 @@ func (d *directoryProvider) Rm(_ context.Context, id string) error {
 		id = filepath.Join(d.dataHome, id)
 	}
 
-	if _, err := os.Stat(id); err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
+	// Check that the directory is safe to delete
+	f, err := safeopen.OpenBeneath(d.dataHome, strings.TrimPrefix(id, d.dataHome))
+	if err != nil {
+		return nil
+	}
+	if err = f.Close(); err != nil {
 		return err
 	}
 
@@ -56,16 +70,20 @@ func (d *directoryProvider) Rm(_ context.Context, id string) error {
 }
 
 func (d *directoryProvider) DeleteFile(_ context.Context, file string) error {
-	err := os.Remove(filepath.Join(d.dataHome, file))
-	if os.IsNotExist(err) {
-		return nil
+	// Check that the file is safe to delete
+	f, err := safeopen.OpenBeneath(d.dataHome, file)
+	if err != nil {
+		return newNotFoundError(DirectoryProvider+"://"+d.dataHome, file)
+	}
+	if err = f.Close(); err != nil {
+		return err
 	}
 
-	return err
+	return os.Remove(filepath.Join(d.dataHome, file))
 }
 
 func (d *directoryProvider) OpenFile(_ context.Context, file string) (io.ReadCloser, error) {
-	f, err := os.Open(filepath.Join(d.dataHome, file))
+	f, err := safeopen.OpenBeneath(d.dataHome, file)
 	if os.IsNotExist(err) {
 		return nil, newNotFoundError(DirectoryProvider+"://"+d.dataHome, file)
 	}
@@ -79,7 +97,7 @@ func (d *directoryProvider) WriteFile(_ context.Context, fileName string, reader
 		return err
 	}
 
-	file, err := os.OpenFile(fullFilePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	file, err := safeopen.OpenFileBeneath(d.dataHome, fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return err
 	}
@@ -90,6 +108,20 @@ func (d *directoryProvider) WriteFile(_ context.Context, fileName string, reader
 }
 
 func (d *directoryProvider) Ls(ctx context.Context, prefix string) ([]string, error) {
+	if prefix != "" {
+		// Ensure that the provided prefix is safe to open.
+		file, err := safeopen.OpenBeneath(d.dataHome, prefix)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		if err = file.Close(); err != nil {
+			return nil, err
+		}
+	}
+
 	files, err := d.ls(ctx, prefix)
 	if err != nil || len(files) == 0 {
 		return nil, err
@@ -125,11 +157,16 @@ func (d *directoryProvider) ls(ctx context.Context, prefix string) ([]string, er
 
 func (d *directoryProvider) RemoveAllWithPrefix(_ context.Context, dirName string) error {
 	fullDirName := filepath.Join(d.dataHome, dirName)
-	_, err := os.Stat(fullDirName)
+
+	// Check that the directory is safe to delete
+	f, err := safeopen.OpenBeneath(d.dataHome, dirName)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
 		}
+		return nil
+	}
+	if err = f.Close(); err != nil {
 		return err
 	}
 

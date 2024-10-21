@@ -40,13 +40,13 @@ type s3Provider struct {
 	client      *s3.Client
 }
 
-func (s *s3Provider) New(id string) workspaceClient {
+func (s *s3Provider) New(id string) (workspaceClient, error) {
 	bucket, dir, _ := strings.Cut(strings.TrimPrefix(id, S3Provider+"://"), "/")
 	return &s3Provider{
 		bucket: bucket,
 		dir:    dir,
 		client: s.client,
-	}
+	}, nil
 }
 
 func (s *s3Provider) Create() (string, error) {
