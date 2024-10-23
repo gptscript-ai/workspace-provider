@@ -111,7 +111,7 @@ func (s *s3Provider) DeleteFile(ctx context.Context, filePath string) error {
 	if err != nil {
 		var respErr *http.ResponseError
 		if errors.As(err, &respErr) && respErr.Response.StatusCode == 404 {
-			return newNotFoundError(fmt.Sprintf("%s://%s/%s", S3Provider, s.bucket, s.dir), filePath)
+			return nil
 		}
 	}
 
