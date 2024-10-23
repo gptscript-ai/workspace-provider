@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"errors"
 	"io"
 	"net/http"
@@ -24,5 +25,8 @@ func (s *server) readFile(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rc.Close()
 
-	_, _ = io.Copy(w, rc)
+	writer := base64.NewEncoder(base64.StdEncoding, w)
+	defer writer.Close()
+
+	_, _ = io.Copy(writer, rc)
 }

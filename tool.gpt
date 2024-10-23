@@ -38,14 +38,14 @@ Tools: Server
 Description: Write a file in a workspace
 Parameter: workspace_id: The ID of the workspaces to write the file in
 Parameter: file_path: The name of the file to write
-Parameter: body: The contents of the file to write
+Parameter: body: The base64 encoded contents of the file to write
 
 #!http://Server.daemon.gptscript.local/write-file/${WORKSPACE_ID}/${FILE_PATH}
 
 ---
 Name: Read File in Workspace
 Tools: Server
-Description: Read a file in a workspace
+Description: Read a file in a workspace, returned the base64 encoded content
 Parameter: workspace_id: The ID of the workspaces to read the file from
 Parameter: file_path: The name of the file to read
 
