@@ -1,8 +1,9 @@
 package server
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
-	"strings"
 )
 
 func (s *server) ls(w http.ResponseWriter, r *http.Request) {
@@ -16,5 +17,12 @@ func (s *server) ls(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, _ = w.Write([]byte(strings.Join(ws, "\n")))
+	b, err := json.Marshal(ws)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(fmt.Sprintf("error: %s", err.Error())))
+		return
+	}
+
+	_, _ = w.Write(b)
 }
