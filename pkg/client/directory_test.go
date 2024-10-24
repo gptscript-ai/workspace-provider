@@ -164,6 +164,11 @@ func TestFileRead(t *testing.T) {
 	if err = dirPrv.DeleteFile(context.Background(), "test.txt"); err != nil {
 		t.Errorf("unexpected error when deleting file: %v", err)
 	}
+
+	// Deleting the file again should not throw an error
+	if err = dirPrv.DeleteFile(context.Background(), "test.txt"); err != nil {
+		t.Errorf("unexpected error when deleting file: %v", err)
+	}
 }
 
 func TestLs(t *testing.T) {

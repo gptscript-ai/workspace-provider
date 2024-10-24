@@ -133,6 +133,11 @@ func TestFileReadFromS3(t *testing.T) {
 	if err = s3Prv.DeleteFile(context.Background(), "test.txt"); err != nil {
 		t.Errorf("unexpected error when deleting file: %v", err)
 	}
+
+	// Deleting the file again should not throw an error
+	if err = s3Prv.DeleteFile(context.Background(), "test.txt"); err != nil {
+		t.Errorf("unexpected error when deleting file: %v", err)
+	}
 }
 
 func TestLsS3(t *testing.T) {

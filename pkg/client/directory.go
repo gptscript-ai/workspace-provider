@@ -84,7 +84,11 @@ func (d *directoryProvider) DeleteFile(_ context.Context, file string) error {
 		return err
 	}
 
-	return os.Remove(filepath.Join(d.dataHome, file))
+	if err = os.Remove(filepath.Join(d.dataHome, file)); !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+
+	return nil
 }
 
 func (d *directoryProvider) OpenFile(_ context.Context, file string) (io.ReadCloser, error) {
