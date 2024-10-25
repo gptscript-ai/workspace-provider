@@ -33,9 +33,20 @@ func (d *directoryProvider) New(id string) (workspaceClient, error) {
 		id = filepath.Join(d.dataHome, id)
 	}
 
+	dir := strings.TrimPrefix(id, d.dataHome+string(filepath.Separator))
+	base := d.dataHome
+	if dirs := strings.Split(dir, string(filepath.Separator)); len(dirs) > 0 && dirs[0] != ".." {
+		base = filepath.Join(base, dirs[0])
+		dir = strings.TrimPrefix(dir, dirs[0]+string(filepath.Separator))
+	}
+
 	// Check that the directory is safe to open
-	f, err := safeopen.OpenBeneath(d.dataHome, strings.TrimPrefix(id, d.dataHome))
-	if err != nil {
+	f, err := safeopen.OpenBeneath(base, dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return &directoryProvider{
+			dataHome: id,
+		}, nil
+	} else if err != nil {
 		return nil, err
 	}
 

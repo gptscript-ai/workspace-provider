@@ -87,6 +87,59 @@ func TestCreateAndRm(t *testing.T) {
 	}
 }
 
+func TestWriteFileWorkspaceDNE(t *testing.T) {
+	id, err := directoryFactory.Create()
+	if err != nil {
+		t.Fatalf("error creating workspace: %v", err)
+	}
+
+	// Delete the directory
+	if err = os.RemoveAll(strings.TrimPrefix(id, DirectoryProvider+"://")); err != nil {
+		t.Errorf("unexpected error when removing workspace: %v", err)
+	}
+
+	dne, err := directoryFactory.New(id)
+	if err != nil {
+		t.Fatalf("error creating workspace: %v", err)
+	}
+
+	if err = dne.WriteFile(context.Background(), "test.txt", strings.NewReader("test")); err != nil {
+		t.Errorf("unexpected error when writing file: %v", err)
+	}
+
+	if err = directoryFactory.Rm(context.Background(), id); err != nil {
+		t.Errorf("unexpected error when removing workspace: %v", err)
+	}
+}
+
+func TestEnsureCannotCreateUnsafeWorkspace(t *testing.T) {
+	id, err := directoryFactory.Create()
+	if err != nil {
+		t.Fatalf("error creating workspace: %v", err)
+	}
+
+	_, err = directoryFactory.New(id + "/..")
+	if err == nil {
+		t.Fatalf("expected error when creating directory outside of workspace")
+	}
+
+	if err = directoryFactory.Rm(context.Background(), id); err != nil {
+		t.Errorf("unexpected error when removing workspace: %v", err)
+	}
+}
+
+func TestEnsureCannotWriteReadUnsafeFile(t *testing.T) {
+	var pathErr *os.PathError
+	if err := dirPrv.WriteFile(context.Background(), "../test.txt", strings.NewReader("test")); err == nil || !errors.As(err, &pathErr) || pathErr.Op != "OpenBeneath" {
+		t.Errorf("unexpected error getting file to write: %v", err)
+	}
+
+	pathErr = nil
+	if _, err := dirPrv.OpenFile(context.Background(), "../test.txt"); err == nil || !errors.As(err, &pathErr) || pathErr.Op != "OpenBeneath" {
+		t.Errorf("unexpected error when deleting file: %v", err)
+	}
+}
+
 func TestWriteAndDeleteFileInDirectory(t *testing.T) {
 	// Copy a file into the workspace
 	if err := dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test")); err != nil {
