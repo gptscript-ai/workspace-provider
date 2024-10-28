@@ -167,6 +167,27 @@ func (s *s3Provider) WriteFile(ctx context.Context, fileName string, reader io.R
 	return err
 }
 
+func (s *s3Provider) StatFile(ctx context.Context, fileName string) (FileInfo, error) {
+	out, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(fmt.Sprintf("%s/%s", s.dir, fileName)),
+	})
+	if err != nil {
+		var respErr *http.ResponseError
+		if errors.As(err, &respErr) && respErr.Response.StatusCode == 404 {
+			return FileInfo{}, newNotFoundError(fmt.Sprintf("%s://%s/%s", S3Provider, s.bucket, s.dir), fileName)
+		}
+		return FileInfo{}, err
+	}
+
+	return FileInfo{
+		WorkspaceID: fmt.Sprintf("%s://%s/%s", S3Provider, s.bucket, s.dir),
+		Name:        strings.TrimPrefix(fileName, s.dir+"/"),
+		Size:        aws.ToInt64(out.ContentLength),
+		ModTime:     aws.ToTime(out.LastModified),
+	}, nil
+}
+
 func (s *s3Provider) RemoveAllWithPrefix(ctx context.Context, prefix string) error {
 	if prefix != "" {
 		prefix = fmt.Sprintf("%s/%s/", s.dir, strings.TrimSuffix(prefix, "/"))

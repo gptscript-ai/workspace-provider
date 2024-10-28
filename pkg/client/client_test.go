@@ -313,6 +313,28 @@ func TestWriteAndDeleteFileDirectoryProvider(t *testing.T) {
 		t.Errorf("error closing file: %v", err)
 	}
 
+	// Stat the file
+	fileInfo, err := c.StatFile(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when statting file: %v", err)
+	}
+
+	if fileInfo.Size != 4 {
+		t.Errorf("unexpected size: %d", fileInfo.Size)
+	}
+
+	if fileInfo.Name != "test.txt" {
+		t.Errorf("unexpected name: %s", fileInfo.Name)
+	}
+
+	if fileInfo.ModTime.IsZero() {
+		t.Errorf("unexpected mod time: %s", fileInfo.ModTime)
+	}
+
+	if fileInfo.WorkspaceID != id {
+		t.Errorf("unexpected workspace id: %s", fileInfo.WorkspaceID)
+	}
+
 	// Delete the file
 	if err = c.DeleteFile(context.Background(), id, "test.txt"); err != nil {
 		t.Errorf("unexpected error when deleting file: %v", err)
@@ -357,6 +379,28 @@ func TestWriteAndDeleteFileS3Provider(t *testing.T) {
 
 	if err = readFile.Close(); err != nil {
 		t.Errorf("error closing file: %v", err)
+	}
+
+	// Stat the file
+	fileInfo, err := c.StatFile(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when statting file: %v", err)
+	}
+
+	if fileInfo.Size != 4 {
+		t.Errorf("unexpected size: %d", fileInfo.Size)
+	}
+
+	if fileInfo.Name != "test.txt" {
+		t.Errorf("unexpected name: %s", fileInfo.Name)
+	}
+
+	if fileInfo.ModTime.IsZero() {
+		t.Errorf("unexpected mod time: %s", fileInfo.ModTime)
+	}
+
+	if fileInfo.WorkspaceID != id {
+		t.Errorf("unexpected workspace id: %s", fileInfo.WorkspaceID)
 	}
 
 	// Delete the file

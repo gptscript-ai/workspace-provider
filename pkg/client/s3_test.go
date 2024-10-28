@@ -60,8 +60,29 @@ func TestWriteAndDeleteFileInS3(t *testing.T) {
 	}
 
 	// Ensure the file actually exists
-	if _, err := s3Prv.client.GetObject(context.Background(), &s3.GetObjectInput{Bucket: &s3Prv.bucket, Key: aws.String(fmt.Sprintf("%s/%s", s3Prv.dir, "test.txt"))}); err != nil {
+	obj, err := s3Prv.client.GetObject(context.Background(), &s3.GetObjectInput{Bucket: &s3Prv.bucket, Key: aws.String(fmt.Sprintf("%s/%s", s3Prv.dir, "test.txt"))})
+	if err != nil {
 		t.Errorf("error when checking if file exists: %v", err)
+	}
+	defer obj.Body.Close()
+
+	// Stat the file and compare with the original
+	providerStat, err := s3Prv.StatFile(context.Background(), "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when statting file: %v", err)
+	}
+
+	if providerStat.WorkspaceID != s3TestingID {
+		t.Errorf("unexpected workspace id: %s", providerStat.WorkspaceID)
+	}
+	if providerStat.Size != aws.ToInt64(obj.ContentLength) {
+		t.Errorf("unexpected file size: %d", providerStat.Size)
+	}
+	if providerStat.Name != "test.txt" {
+		t.Errorf("unexpected file name: %s", providerStat.Name)
+	}
+	if providerStat.ModTime.Compare(aws.ToTime(obj.LastModified)) != 0 {
+		t.Errorf("unexpected file mod time: %s", providerStat.ModTime)
 	}
 
 	// Delete the file

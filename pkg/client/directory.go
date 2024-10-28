@@ -127,6 +127,29 @@ func (d *directoryProvider) WriteFile(_ context.Context, fileName string, reader
 	return err
 }
 
+func (d *directoryProvider) StatFile(_ context.Context, s string) (FileInfo, error) {
+	f, err := safeopen.OpenBeneath(d.dataHome, s)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return FileInfo{}, newNotFoundError(DirectoryProvider+"://"+d.dataHome, s)
+		}
+		return FileInfo{}, err
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		return FileInfo{}, err
+	}
+
+	return FileInfo{
+		WorkspaceID: DirectoryProvider + "://" + d.dataHome,
+		Name:        stat.Name(),
+		Size:        stat.Size(),
+		ModTime:     stat.ModTime(),
+	}, nil
+}
+
 func (d *directoryProvider) Ls(ctx context.Context, prefix string) ([]string, error) {
 	if prefix != "" {
 		// Ensure that the provided prefix is safe to open.
