@@ -147,8 +147,28 @@ func TestWriteAndDeleteFileInDirectory(t *testing.T) {
 	}
 
 	// Ensure the file actually exists
-	if _, err := os.Stat(filepath.Join(strings.TrimPrefix(directoryTestingID, DirectoryProvider+"://"), "test.txt")); err != nil {
+	info, err := os.Stat(filepath.Join(strings.TrimPrefix(directoryTestingID, DirectoryProvider+"://"), "test.txt"))
+	if err != nil {
 		t.Errorf("error when checking if file exists: %v", err)
+	}
+
+	// Stat the file and compare with the original
+	providerStat, err := dirPrv.StatFile(context.Background(), "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when statting file: %v", err)
+	}
+
+	if providerStat.WorkspaceID != directoryTestingID {
+		t.Errorf("unexpected workspace id: %s", providerStat.WorkspaceID)
+	}
+	if providerStat.Size != info.Size() {
+		t.Errorf("unexpected file size: %d", providerStat.Size)
+	}
+	if providerStat.Name != info.Name() {
+		t.Errorf("unexpected file name: %s", providerStat.Name)
+	}
+	if providerStat.ModTime.Compare(info.ModTime()) != 0 {
+		t.Errorf("unexpected file mod time: %s", providerStat.ModTime)
 	}
 
 	// Delete the file

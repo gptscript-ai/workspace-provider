@@ -61,6 +61,15 @@ Parameter: file_path: The name of the file to remove
 #!http://Server.daemon.gptscript.local/rm-file/${WORKSPACE_ID}/${FILE_PATH}
 
 ---
+Name: Stat File in Workspace
+Tools: Server
+Description: Get information about a file in a workspace
+Parameter: workspace_id: The ID of the workspaces to stat the file from
+Parameter: file_path: The name of the file to stat
+
+#!http://Server.daemon.gptscript.local/stat-file/${WORKSPACE_ID}/${FILE_PATH}
+
+---
 Name: Server
 Description: Start the workspace-provider server
 

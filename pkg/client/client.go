@@ -28,6 +28,7 @@ type workspaceClient interface {
 	OpenFile(context.Context, string) (io.ReadCloser, error)
 	WriteFile(context.Context, string, io.Reader) error
 	DeleteFile(context.Context, string) error
+	StatFile(context.Context, string) (FileInfo, error)
 	RemoveAllWithPrefix(context.Context, string) error
 }
 
@@ -167,6 +168,15 @@ func (c *Client) WriteFile(ctx context.Context, id, fileName string, reader io.R
 	}
 
 	return wc.WriteFile(ctx, fileName, reader)
+}
+
+func (c *Client) StatFile(ctx context.Context, id, fileName string) (FileInfo, error) {
+	wc, err := c.getClient(id)
+	if err != nil {
+		return FileInfo{}, err
+	}
+
+	return wc.StatFile(ctx, fileName)
 }
 
 func (c *Client) RemoveAllWithPrefix(ctx context.Context, id, prefix string) error {
