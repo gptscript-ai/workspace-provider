@@ -14,7 +14,7 @@ func Run(ctx context.Context, client *client.Client, port int) error {
 	s := &server{
 		client: client,
 		httpServer: &http.Server{
-			Addr:    fmt.Sprintf(":%d", port),
+			Addr:    fmt.Sprintf("127.0.0.1:%d", port),
 			Handler: mux,
 		},
 	}
