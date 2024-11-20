@@ -144,12 +144,11 @@ func (d *directoryProvider) StatFile(_ context.Context, s string) (FileInfo, err
 	}
 
 	// Get Mimetype
-	var mime string
 	mt, err := mimetype.DetectReader(f)
 	if err != nil {
 		return FileInfo{}, err
 	}
-	mime = strings.Split(mt.String(), ";")[0]
+	mime := strings.Split(mt.String(), ";")[0]
 
 	return FileInfo{
 		WorkspaceID: DirectoryProvider + "://" + d.dataHome,
