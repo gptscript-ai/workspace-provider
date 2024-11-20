@@ -7,4 +7,5 @@ type FileInfo struct {
 	Name        string    `json:"name"`
 	Size        int64     `json:"size"`
 	ModTime     time.Time `json:"modTime"`
+	MimeType    string    `json:"mimeType"`
 }

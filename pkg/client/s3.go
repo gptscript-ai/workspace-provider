@@ -16,6 +16,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/google/uuid"
+
+	"github.com/gabriel-vasile/mimetype"
 )
 
 func newS3(ctx context.Context, bucket, baseEndpoint string) (workspaceFactory, error) {
@@ -180,11 +182,33 @@ func (s *s3Provider) StatFile(ctx context.Context, fileName string) (FileInfo, e
 		return FileInfo{}, err
 	}
 
+	var mime string
+	if out.ContentType != nil {
+		mime = *out.ContentType
+	}
+
+	// get the first 3072 bytes of the file to detect the mimetype, as the S3 ContentType is not reliable if not set explicitly
+	fileStart, err := s.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(fmt.Sprintf("%s/%s", s.dir, fileName)),
+		Range:  aws.String("bytes=0-3072"), // 3072 is the default read limit of the mimetype package
+	})
+	if err != nil {
+		return FileInfo{}, err
+	}
+	defer fileStart.Body.Close()
+
+	mt, err := mimetype.DetectReader(fileStart.Body)
+	if err == nil {
+		mime = strings.Split(mt.String(), ";")[0]
+	}
+
 	return FileInfo{
 		WorkspaceID: fmt.Sprintf("%s://%s/%s", S3Provider, s.bucket, s.dir),
 		Name:        strings.TrimPrefix(fileName, s.dir+"/"),
 		Size:        aws.ToInt64(out.ContentLength),
 		ModTime:     aws.ToTime(out.LastModified),
+		MimeType:    mime,
 	}, nil
 }
 

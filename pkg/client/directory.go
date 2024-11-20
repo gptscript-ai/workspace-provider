@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/adrg/xdg"
+	"github.com/gabriel-vasile/mimetype"
 	"github.com/google/safeopen"
 	"github.com/google/uuid"
 )
@@ -142,11 +143,19 @@ func (d *directoryProvider) StatFile(_ context.Context, s string) (FileInfo, err
 		return FileInfo{}, err
 	}
 
+	// Get Mimetype
+	mt, err := mimetype.DetectReader(f)
+	if err != nil {
+		return FileInfo{}, err
+	}
+	mime := strings.Split(mt.String(), ";")[0]
+
 	return FileInfo{
 		WorkspaceID: DirectoryProvider + "://" + d.dataHome,
 		Name:        stat.Name(),
 		Size:        stat.Size(),
 		ModTime:     stat.ModTime(),
+		MimeType:    mime,
 	}, nil
 }
 
