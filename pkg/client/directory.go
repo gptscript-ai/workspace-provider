@@ -162,7 +162,7 @@ func (d *directoryProvider) StatFile(_ context.Context, s string) (FileInfo, err
 func (d *directoryProvider) Ls(ctx context.Context, prefix string) ([]string, error) {
 	if prefix != "" {
 		// Ensure that the provided prefix is safe to open.
-		file, err := safeopen.OpenBeneath(d.dataHome, prefix)
+		file, err := safeopen.OpenBeneath(d.dataHome, strings.TrimSuffix(prefix, "/"))
 		if err != nil {
 			if os.IsNotExist(err) {
 				return nil, nil

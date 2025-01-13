@@ -367,26 +367,31 @@ func TestLsWithPrefix(t *testing.T) {
 		}()
 	}
 
-	contents, err := dirPrv.Ls(context.Background(), "testDir")
-	if err != nil {
-		t.Fatalf("unexpected error when listing files: %v", err)
-	}
+	for _, input := range []string{
+		"testDir",
+		"testDir/",
+	} {
+		contents, err := dirPrv.Ls(context.Background(), input)
+		if err != nil {
+			t.Fatalf("unexpected error when listing files: %v", err)
+		}
 
-	if len(contents) != 4 {
-		t.Errorf("unexpected number of contents: %d", len(contents))
-	}
+		if len(contents) != 4 {
+			t.Errorf("unexpected number of contents: %d", len(contents))
+		}
 
-	sort.Strings(contents)
-	if !reflect.DeepEqual(
-		contents,
-		[]string{
-			filepath.Join("testDir", "test3.txt"),
-			filepath.Join("testDir", "test4.txt"),
-			filepath.Join("testDir", "test5.txt"),
-			filepath.Join("testDir", "test6.txt"),
-		},
-	) {
-		t.Errorf("unexpected contents: %v", contents)
+		sort.Strings(contents)
+		if !reflect.DeepEqual(
+			contents,
+			[]string{
+				filepath.Join("testDir", "test3.txt"),
+				filepath.Join("testDir", "test4.txt"),
+				filepath.Join("testDir", "test5.txt"),
+				filepath.Join("testDir", "test6.txt"),
+			},
+		) {
+			t.Errorf("unexpected contents: %v", contents)
+		}
 	}
 }
 
