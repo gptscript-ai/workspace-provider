@@ -38,16 +38,26 @@ func newS3(ctx context.Context, bucket, baseEndpoint string) (workspaceFactory, 
 }
 
 type s3Provider struct {
-	bucket, dir string
-	client      *s3.Client
+	bucket, dir       string
+	client            *s3.Client
+	revisionsProvider workspaceClient
 }
 
 func (s *s3Provider) New(id string) (workspaceClient, error) {
 	bucket, dir, _ := strings.Cut(strings.TrimPrefix(id, S3Provider+"://"), "/")
+	if dir == revisionsDir {
+		return nil, errors.New("cannot create a workspace client for the revisions directory")
+	}
+
 	return &s3Provider{
 		bucket: bucket,
 		dir:    dir,
 		client: s.client,
+		revisionsProvider: &s3Provider{
+			bucket: bucket,
+			dir:    fmt.Sprintf("%s/%s", revisionsDir, dir),
+			client: s.client,
+		},
 	}, nil
 }
 
@@ -62,9 +72,21 @@ func (s *s3Provider) Rm(ctx context.Context, id string) error {
 		bucket: bucket,
 		dir:    dir,
 		client: s.client,
+		revisionsProvider: &s3Provider{
+			bucket: bucket,
+			dir:    fmt.Sprintf("%s/%s", revisionsDir, dir),
+			client: s.client,
+		},
 	}
 
+	// Best effort
+	_ = newS.revisionsProvider.RemoveAllWithPrefix(ctx, s.dir)
+
 	return newS.RemoveAllWithPrefix(ctx, "")
+}
+
+func (s *s3Provider) RevisionClient() workspaceClient {
+	return s.revisionsProvider
 }
 
 func (s *s3Provider) Ls(ctx context.Context, prefix string) ([]string, error) {
@@ -112,12 +134,29 @@ func (s *s3Provider) DeleteFile(ctx context.Context, filePath string) error {
 	})
 	if err != nil {
 		var respErr *http.ResponseError
-		if errors.As(err, &respErr) && respErr.Response.StatusCode == 404 {
-			return nil
+		if !errors.As(err, &respErr) || respErr.Response.StatusCode != 404 {
+			return err
 		}
 	}
 
-	return err
+	if s.revisionsProvider == nil {
+		return nil
+	}
+
+	info, err := getRevisionInfo(ctx, s.revisionsProvider, filePath)
+	if err != nil {
+		return err
+	}
+
+	for i := info.CurrentID; i > 0; i-- {
+		// Best effort
+		_ = deleteRevision(ctx, s.revisionsProvider, filePath, fmt.Sprintf("%d", i))
+	}
+
+	// Best effort
+	_ = deleteRevisionInfo(ctx, s.revisionsProvider, filePath)
+
+	return nil
 }
 
 func (s *s3Provider) OpenFile(ctx context.Context, filePath string) (io.ReadCloser, error) {
@@ -137,6 +176,26 @@ func (s *s3Provider) OpenFile(ctx context.Context, filePath string) (io.ReadClos
 }
 
 func (s *s3Provider) WriteFile(ctx context.Context, fileName string, reader io.Reader) error {
+	if s.revisionsProvider != nil {
+		info, err := getRevisionInfo(ctx, s.revisionsProvider, fileName)
+		if err != nil {
+			if nfe := (*NotFoundError)(nil); !errors.As(err, &nfe) {
+				return err
+			}
+		}
+
+		info.CurrentID++
+		if err = writeRevision(ctx, s.revisionsProvider, s, fileName, info); err != nil {
+			if nfe := (*NotFoundError)(nil); !errors.As(err, &nfe) {
+				return fmt.Errorf("failed to write revision: %w", err)
+			}
+		}
+
+		if err = writeRevisionInfo(ctx, s.revisionsProvider, fileName, info); err != nil {
+			return fmt.Errorf("failed to write revision info: %w", err)
+		}
+	}
+
 	var contentLength int64
 	switch r := reader.(type) {
 	case io.Seeker:
@@ -258,4 +317,16 @@ func (s *s3Provider) RemoveAllWithPrefix(ctx context.Context, prefix string) err
 
 		continuation = contents.ContinuationToken
 	}
+}
+
+func (s *s3Provider) ListRevisions(ctx context.Context, fileName string) ([]RevisionInfo, error) {
+	return listRevisions(ctx, s.revisionsProvider, fmt.Sprintf("%s://%s/%s", S3Provider, s.bucket, s.dir), fileName)
+}
+
+func (s *s3Provider) GetRevision(ctx context.Context, fileName, revisionID string) (io.ReadCloser, error) {
+	return getRevision(ctx, s.revisionsProvider, fileName, revisionID)
+}
+
+func (s *s3Provider) DeleteRevision(ctx context.Context, fileName, revisionID string) error {
+	return deleteRevision(ctx, s.revisionsProvider, fileName, revisionID)
 }

@@ -30,6 +30,10 @@ type workspaceClient interface {
 	DeleteFile(context.Context, string) error
 	StatFile(context.Context, string) (FileInfo, error)
 	RemoveAllWithPrefix(context.Context, string) error
+	ListRevisions(context.Context, string) ([]RevisionInfo, error)
+	GetRevision(context.Context, string, string) (io.ReadCloser, error)
+	DeleteRevision(context.Context, string, string) error
+	RevisionClient() workspaceClient
 }
 
 type Options struct {
@@ -115,6 +119,9 @@ func (c *Client) Create(ctx context.Context, provider string, fromWorkspaces ...
 		if err = cp(ctx, sourceClient, destClient); err != nil {
 			return "", err
 		}
+		if err = cp(ctx, sourceClient.RevisionClient(), destClient.RevisionClient()); err != nil {
+			return "", err
+		}
 	}
 
 	return id, nil
@@ -188,6 +195,33 @@ func (c *Client) RemoveAllWithPrefix(ctx context.Context, id, prefix string) err
 	return wc.RemoveAllWithPrefix(ctx, prefix)
 }
 
+func (c *Client) ListRevisions(ctx context.Context, id, fileName string) ([]RevisionInfo, error) {
+	wc, err := c.getClient(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return wc.ListRevisions(ctx, fileName)
+}
+
+func (c *Client) GetRevision(ctx context.Context, id, fileName, revision string) (io.ReadCloser, error) {
+	wc, err := c.getClient(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return wc.GetRevision(ctx, fileName, revision)
+}
+
+func (c *Client) DeleteRevision(ctx context.Context, id, fileName, revision string) error {
+	wc, err := c.getClient(id)
+	if err != nil {
+		return err
+	}
+
+	return wc.DeleteRevision(ctx, fileName, revision)
+}
+
 func (c *Client) getClient(id string) (workspaceClient, error) {
 	provider, _, ok := strings.Cut(id, "://")
 	if !ok {
@@ -212,6 +246,13 @@ func (c *Client) getFactory(provider string) (workspaceFactory, error) {
 }
 
 func cp(ctx context.Context, source, dest workspaceClient) error {
+	if source == nil {
+		return fmt.Errorf("cannot copy from nil workspace client")
+	}
+	if dest == nil {
+		return fmt.Errorf("cannot copy to nil workspace client")
+	}
+
 	contents, err := source.Ls(ctx, "")
 	if err != nil {
 		return err

@@ -9,3 +9,12 @@ type FileInfo struct {
 	ModTime     time.Time `json:"modTime"`
 	MimeType    string    `json:"mimeType"`
 }
+
+type RevisionInfo struct {
+	FileInfo
+	RevisionID string `json:"revisionID"`
+}
+
+type revisionInfo struct {
+	CurrentID int `json:"currentID"`
+}

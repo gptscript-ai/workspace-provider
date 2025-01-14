@@ -28,6 +28,9 @@ func Run(ctx context.Context, client *client.Client, port int) error {
 	mux.HandleFunc("/rm-file/{id}/{fileName}", s.deleteFile)
 	mux.HandleFunc("/stat-file/{id}/{fileName}", s.statFile)
 	mux.HandleFunc("/rm-with-prefix/{id}/{prefix}", s.removeAllWithPrefix)
+	mux.HandleFunc("/list-revisions/{id}/{fileName}", s.listRevisions)
+	mux.HandleFunc("/get-revision/{id}/{fileName}/{revisionID}", s.getRevision)
+	mux.HandleFunc("/delete-revision/{id}/{fileName}/{revisionID}", s.deleteRevision)
 
 	context.AfterFunc(ctx, func() {
 		if err := s.httpServer.Shutdown(context.Background()); err != nil {
