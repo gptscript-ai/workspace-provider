@@ -70,6 +70,35 @@ Parameter: file_path: The name of the file to stat
 #!http://Server.daemon.gptscript.local/stat-file/${WORKSPACE_ID}/${FILE_PATH}
 
 ---
+Name: List Revisions for File in Workspace
+Tools: Server
+Description: Get the revision information for a file in a workspace
+Parameter: workspace_id: The ID of the workspaces to stat the file from
+Parameter: file_path: The name of the file to stat
+
+#!http://Server.daemon.gptscript.local/list-revisions/${WORKSPACE_ID}/${FILE_PATH}
+
+---
+Name: Get a Revision for File in Workspace
+Tools: Server
+Description: Read the given revision for a file in a workspace
+Parameter: workspace_id: The ID of the workspaces to stat the file from
+Parameter: file_path: The name of the file to stat
+Parameter: revision_id: The id of the revision to return
+
+#!http://Server.daemon.gptscript.local/get-revision/${WORKSPACE_ID}/${FILE_PATH}/${REVISION_ID}
+
+---
+Name: Delete a Revision for File in Workspace
+Tools: Server
+Description: Delete the given revision for a file in a workspace
+Parameter: workspace_id: The ID of the workspaces to stat the file from
+Parameter: file_path: The name of the file to stat
+Parameter: revision_id: The id of the revision to return
+
+#!http://Server.daemon.gptscript.local/delete-revision/${WORKSPACE_ID}/${FILE_PATH}/${REVISION_ID}
+
+---
 Name: Server
 Description: Start the workspace-provider server
 

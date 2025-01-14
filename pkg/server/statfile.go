@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/gptscript-ai/workspace-provider/pkg/client"
@@ -24,12 +23,5 @@ func (s *server) statFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	b, err := json.Marshal(info)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(fmt.Sprintf("error: %s", err.Error())))
-		return
-	}
-
-	_, _ = w.Write(b)
+	_ = json.NewEncoder(w).Encode(info)
 }

@@ -102,6 +102,11 @@ func TestCreateAndRmDirectoryProviderFromProvider(t *testing.T) {
 	})
 
 	// Put a file in the parent workspace
+	if err = c.WriteFile(context.Background(), parentID, "test.txt", strings.NewReader("test-temp")); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	// Write to file again to create a revision
 	if err = c.WriteFile(context.Background(), parentID, "test.txt", strings.NewReader("test")); err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
@@ -144,6 +149,30 @@ func TestCreateAndRmDirectoryProviderFromProvider(t *testing.T) {
 		t.Errorf("error closing file: %v", err)
 	}
 
+	// Ensure the new workspace has the revisions
+	revisions, err := c.ListRevisions(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+
+	if len(revisions) != 1 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	rev, err := c.GetRevision(context.Background(), id, "test.txt", "1")
+	if err != nil {
+		t.Errorf("unexpected error when getting revision: %v", err)
+	}
+
+	content, err = io.ReadAll(rev)
+	if err != nil {
+		t.Errorf("unexpected error when reading file: %v", err)
+	}
+
+	if string(content) != "test-temp" {
+		t.Errorf("unexpected content: %s", string(content))
+	}
+
 	if err = c.Rm(context.Background(), id); err != nil {
 		t.Errorf("unexpected error when removing workspace: %v", err)
 	}
@@ -166,6 +195,11 @@ func TestCreateAndRmS3ProviderFromProvider(t *testing.T) {
 	})
 
 	// Put a file in the parent workspace
+	if err = c.WriteFile(context.Background(), parentID, "test.txt", strings.NewReader("test-temp")); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	// Write to the file again to create a revision
 	if err = c.WriteFile(context.Background(), parentID, "test.txt", strings.NewReader("test")); err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
@@ -206,6 +240,30 @@ func TestCreateAndRmS3ProviderFromProvider(t *testing.T) {
 
 	if err = readFile.Close(); err != nil {
 		t.Errorf("error closing file: %v", err)
+	}
+
+	// Ensure the new workspace has the revisions
+	revisions, err := c.ListRevisions(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+
+	if len(revisions) != 1 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	rev, err := c.GetRevision(context.Background(), id, "test.txt", "1")
+	if err != nil {
+		t.Errorf("unexpected error when getting revision: %v", err)
+	}
+
+	content, err = io.ReadAll(rev)
+	if err != nil {
+		t.Errorf("unexpected error when reading file: %v", err)
+	}
+
+	if string(content) != "test-temp" {
+		t.Errorf("unexpected content: %s", string(content))
 	}
 
 	if err = c.Rm(context.Background(), id); err != nil {
@@ -230,6 +288,11 @@ func TestCreateAndRmS3ProviderFromDirectoryProvider(t *testing.T) {
 	})
 
 	// Put a file in the parent workspace
+	if err = c.WriteFile(context.Background(), parentID, "test.txt", strings.NewReader("test-temp")); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	// Write to the file again to create a revision
 	if err = c.WriteFile(context.Background(), parentID, "test.txt", strings.NewReader("test")); err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
@@ -270,6 +333,30 @@ func TestCreateAndRmS3ProviderFromDirectoryProvider(t *testing.T) {
 
 	if err = readFile.Close(); err != nil {
 		t.Errorf("error closing file: %v", err)
+	}
+
+	// Ensure the new workspace has the revisions
+	revisions, err := c.ListRevisions(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+
+	if len(revisions) != 1 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	rev, err := c.GetRevision(context.Background(), id, "test.txt", "1")
+	if err != nil {
+		t.Errorf("unexpected error when getting revision: %v", err)
+	}
+
+	content, err = io.ReadAll(rev)
+	if err != nil {
+		t.Errorf("unexpected error when reading file: %v", err)
+	}
+
+	if string(content) != "test-temp" {
+		t.Errorf("unexpected content: %s", string(content))
 	}
 
 	if err = c.Rm(context.Background(), id); err != nil {
@@ -401,6 +488,274 @@ func TestWriteAndDeleteFileS3Provider(t *testing.T) {
 
 	if fileInfo.WorkspaceID != id {
 		t.Errorf("unexpected workspace id: %s", fileInfo.WorkspaceID)
+	}
+
+	// Delete the file
+	if err = c.DeleteFile(context.Background(), id, "test.txt"); err != nil {
+		t.Errorf("unexpected error when deleting file: %v", err)
+	}
+}
+
+func TestListGetDeleteRevisionDirectoryProvider(t *testing.T) {
+	id, err := c.Create(context.Background(), DirectoryProvider)
+	if err != nil {
+		t.Errorf("error creating workspace: %v", err)
+	}
+
+	t.Cleanup(func() {
+		if err := c.Rm(context.Background(), id); err != nil {
+			t.Errorf("unexpected error when removing parent workspace: %v", err)
+		}
+	})
+
+	// Put a file in the parent workspace
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test")); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	// Update the file to create a revision
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test2")); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// List revisions
+	revisions, err := c.ListRevisions(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+
+	if len(revisions) != 1 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	} else {
+		if revisions[0].Size != 4 {
+			t.Errorf("unexpected size: %d", revisions[0].Size)
+		}
+
+		if revisions[0].Name != "test.txt" {
+			t.Errorf("unexpected name: %s", revisions[0].Name)
+		}
+
+		if revisions[0].ModTime.IsZero() {
+			t.Errorf("unexpected mod time: %s", revisions[0].ModTime)
+		}
+
+		if revisions[0].WorkspaceID != id {
+			t.Errorf("unexpected workspace id: %s", revisions[0].WorkspaceID)
+		}
+
+		if revisions[0].RevisionID != "1" {
+			t.Errorf("unexpected workspace id: %s", revisions[0].RevisionID)
+		}
+	}
+
+	// Read the file to ensure it was copied over
+	readRev, err := c.GetRevision(context.Background(), id, "test.txt", "1")
+	if err != nil {
+		t.Errorf("unexpected error when reading file: %v", err)
+	}
+
+	content, err := io.ReadAll(readRev)
+	if err != nil {
+		t.Errorf("unexpected error when reading revision file: %v", err)
+	}
+
+	if string(content) != "test" {
+		t.Errorf("unexpected content: %s", string(content))
+	}
+
+	if err = readRev.Close(); err != nil {
+		t.Errorf("error closing revision revision file: %v", err)
+	}
+
+	// Update the file to create another revision
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test3")); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// List revisions
+	revisions, err = c.ListRevisions(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+
+	if len(revisions) != 2 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Delete the first revision
+	if err = c.DeleteRevision(context.Background(), id, "test.txt", "1"); err != nil {
+		t.Errorf("unexpected error when deleting revision: %v", err)
+	}
+
+	// List revisions
+	revisions, err = c.ListRevisions(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+
+	if len(revisions) != 1 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Read the file to ensure it was copied over
+	readRev, err = c.GetRevision(context.Background(), id, "test.txt", "2")
+	if err != nil {
+		t.Errorf("unexpected error when reading revision file: %v", err)
+	}
+
+	content, err = io.ReadAll(readRev)
+	if err != nil {
+		t.Errorf("unexpected error when reading revision file: %v", err)
+	}
+
+	if string(content) != "test2" {
+		t.Errorf("unexpected content: %s", string(content))
+	}
+
+	if err = readRev.Close(); err != nil {
+		t.Errorf("error closing revision file: %v", err)
+	}
+
+	readRev, err = c.GetRevision(context.Background(), id, "test.txt", "1")
+	if err == nil {
+		readRev.Close()
+		t.Errorf("expected error when non-existent revision file")
+	}
+
+	// Delete the file
+	if err = c.DeleteFile(context.Background(), id, "test.txt"); err != nil {
+		t.Errorf("unexpected error when deleting file: %v", err)
+	}
+}
+
+func TestListGetDeleteRevisionS3Provider(t *testing.T) {
+	if skipS3Tests {
+		t.Skip("Skipping S3 tests")
+	}
+
+	id, err := c.Create(context.Background(), S3Provider)
+	if err != nil {
+		t.Errorf("error creating workspace: %v", err)
+	}
+
+	t.Cleanup(func() {
+		if err := c.Rm(context.Background(), id); err != nil {
+			t.Errorf("unexpected error when removing parent workspace: %v", err)
+		}
+	})
+
+	// Put a file in the parent workspace
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test")); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	// Update the file to create a revision
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test2")); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// List revisions
+	revisions, err := c.ListRevisions(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+
+	if len(revisions) != 1 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	} else {
+		if revisions[0].Size != 4 {
+			t.Errorf("unexpected size: %d", revisions[0].Size)
+		}
+
+		if revisions[0].Name != "test.txt" {
+			t.Errorf("unexpected name: %s", revisions[0].Name)
+		}
+
+		if revisions[0].ModTime.IsZero() {
+			t.Errorf("unexpected mod time: %s", revisions[0].ModTime)
+		}
+
+		if revisions[0].WorkspaceID != id {
+			t.Errorf("unexpected workspace id: %s", revisions[0].WorkspaceID)
+		}
+
+		if revisions[0].RevisionID != "1" {
+			t.Errorf("unexpected workspace id: %s", revisions[0].RevisionID)
+		}
+	}
+
+	// Read the file to ensure it was copied over
+	readRev, err := c.GetRevision(context.Background(), id, "test.txt", "1")
+	if err != nil {
+		t.Errorf("unexpected error when reading file: %v", err)
+	}
+
+	content, err := io.ReadAll(readRev)
+	if err != nil {
+		t.Errorf("unexpected error when reading revision file: %v", err)
+	}
+
+	if string(content) != "test" {
+		t.Errorf("unexpected content: %s", string(content))
+	}
+
+	if err = readRev.Close(); err != nil {
+		t.Errorf("error closing revision revision file: %v", err)
+	}
+
+	// Update the file to create another revision
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test3")); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// List revisions
+	revisions, err = c.ListRevisions(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+
+	if len(revisions) != 2 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Delete the first revision
+	if err = c.DeleteRevision(context.Background(), id, "test.txt", "1"); err != nil {
+		t.Errorf("unexpected error when deleting revision: %v", err)
+	}
+
+	// List revisions
+	revisions, err = c.ListRevisions(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+
+	if len(revisions) != 1 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Read the file to ensure it was copied over
+	readRev, err = c.GetRevision(context.Background(), id, "test.txt", "2")
+	if err != nil {
+		t.Errorf("unexpected error when reading revision file: %v", err)
+	}
+
+	content, err = io.ReadAll(readRev)
+	if err != nil {
+		t.Errorf("unexpected error when reading revision file: %v", err)
+	}
+
+	if string(content) != "test2" {
+		t.Errorf("unexpected content: %s", string(content))
+	}
+
+	if err = readRev.Close(); err != nil {
+		t.Errorf("error closing revision file: %v", err)
+	}
+
+	readRev, err = c.GetRevision(context.Background(), id, "test.txt", "1")
+	if err == nil {
+		readRev.Close()
+		t.Errorf("expected error when non-existent revision file")
 	}
 
 	// Delete the file
