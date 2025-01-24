@@ -175,8 +175,8 @@ func (s *s3Provider) OpenFile(ctx context.Context, filePath string) (io.ReadClos
 	return out.Body, nil
 }
 
-func (s *s3Provider) WriteFile(ctx context.Context, fileName string, reader io.Reader) error {
-	if s.revisionsProvider != nil {
+func (s *s3Provider) WriteFile(ctx context.Context, fileName string, reader io.Reader, opt WriteOptions) error {
+	if s.revisionsProvider != nil && (opt.CreateRevision == nil || *opt.CreateRevision) {
 		info, err := getRevisionInfo(ctx, s.revisionsProvider, fileName)
 		if err != nil {
 			if nfe := (*NotFoundError)(nil); !errors.As(err, &nfe) {

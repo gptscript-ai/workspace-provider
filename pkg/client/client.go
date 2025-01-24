@@ -26,7 +26,7 @@ type workspaceFactory interface {
 type workspaceClient interface {
 	Ls(context.Context, string) ([]string, error)
 	OpenFile(context.Context, string) (io.ReadCloser, error)
-	WriteFile(context.Context, string, io.Reader) error
+	WriteFile(context.Context, string, io.Reader, WriteOptions) error
 	DeleteFile(context.Context, string) error
 	StatFile(context.Context, string) (FileInfo, error)
 	RemoveAllWithPrefix(context.Context, string) error
@@ -168,13 +168,23 @@ func (c *Client) OpenFile(ctx context.Context, id, fileName string) (io.ReadClos
 	return wc.OpenFile(ctx, fileName)
 }
 
-func (c *Client) WriteFile(ctx context.Context, id, fileName string, reader io.Reader) error {
+type WriteOptions struct {
+	CreateRevision *bool
+}
+
+func (c *Client) WriteFile(ctx context.Context, id, fileName string, reader io.Reader, opts ...WriteOptions) error {
+	var opt WriteOptions
+	for _, o := range opts {
+		if o.CreateRevision != nil {
+			opt.CreateRevision = o.CreateRevision
+		}
+	}
 	wc, err := c.getClient(id)
 	if err != nil {
 		return err
 	}
 
-	return wc.WriteFile(ctx, fileName, reader)
+	return wc.WriteFile(ctx, fileName, reader, opt)
 }
 
 func (c *Client) StatFile(ctx context.Context, id, fileName string) (FileInfo, error) {
@@ -276,5 +286,5 @@ func cpFile(ctx context.Context, entry string, source, dest workspaceClient) err
 	}
 	defer sourceFile.Close()
 
-	return dest.WriteFile(ctx, entry, sourceFile)
+	return dest.WriteFile(ctx, entry, sourceFile, WriteOptions{})
 }

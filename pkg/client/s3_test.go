@@ -56,7 +56,7 @@ func TestWriteAndDeleteFileInS3(t *testing.T) {
 	}
 
 	// Copy a file into the workspace
-	if err := s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test")); err != nil {
+	if err := s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
 
@@ -104,7 +104,7 @@ func TestWriteAndDeleteFileInS3WithSubDir(t *testing.T) {
 
 	filePath := filepath.Join("subdir", "test.txt")
 	// Copy a file into the workspace
-	if err := s3Prv.WriteFile(context.Background(), filePath, strings.NewReader("test")); err != nil {
+	if err := s3Prv.WriteFile(context.Background(), filePath, strings.NewReader("test"), WriteOptions{}); err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
 
@@ -129,7 +129,7 @@ func TestFileReadFromS3(t *testing.T) {
 		t.Skip("Skipping S3 tests")
 	}
 
-	if err := s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test")); err != nil {
+	if err := s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
 
@@ -170,7 +170,7 @@ func TestLsS3(t *testing.T) {
 	// Write a bunch of files to the directory. They can be blank
 	for i := range 7 {
 		fileName := fmt.Sprintf("test%d.txt", i)
-		if err := s3Prv.WriteFile(context.Background(), fileName, strings.NewReader("test")); err != nil {
+		if err := s3Prv.WriteFile(context.Background(), fileName, strings.NewReader("test"), WriteOptions{}); err != nil {
 			t.Fatalf("error getting file to write: %v", err)
 		}
 
@@ -227,7 +227,7 @@ func TestLsWithSubDirsS3(t *testing.T) {
 		if i >= 3 {
 			fileName = fmt.Sprintf("testDir/%s", fileName)
 		}
-		if err := s3Prv.WriteFile(context.Background(), fileName, strings.NewReader("test")); err != nil {
+		if err := s3Prv.WriteFile(context.Background(), fileName, strings.NewReader("test"), WriteOptions{}); err != nil {
 			t.Fatalf("error getting file to write: %v", err)
 		}
 
@@ -284,7 +284,7 @@ func TestLsWithPrefixS3(t *testing.T) {
 		if i >= 3 {
 			fileName = fmt.Sprintf("testDir/%s", fileName)
 		}
-		if err := s3Prv.WriteFile(context.Background(), fileName, strings.NewReader("test")); err != nil {
+		if err := s3Prv.WriteFile(context.Background(), fileName, strings.NewReader("test"), WriteOptions{}); err != nil {
 			t.Fatalf("error getting file to write: %v", err)
 		}
 
@@ -331,7 +331,7 @@ func TestRemoveAllWithPrefixS3(t *testing.T) {
 		if i >= 3 {
 			fileName = fmt.Sprintf("testDir/%s", fileName)
 		}
-		if err := s3Prv.WriteFile(context.Background(), fileName, strings.NewReader("test")); err != nil {
+		if err := s3Prv.WriteFile(context.Background(), fileName, strings.NewReader("test"), WriteOptions{}); err != nil {
 			t.Fatalf("error getting file to write: %v", err)
 		}
 
@@ -391,7 +391,7 @@ func TestWriteEnsureRevisionS3(t *testing.T) {
 	}
 
 	// Copy a file into the workspace
-	if err := s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test")); err != nil {
+	if err := s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
 
@@ -405,7 +405,7 @@ func TestWriteEnsureRevisionS3(t *testing.T) {
 	}
 
 	// Update the file
-	if err = s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2")); err != nil {
+	if err = s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{}); err != nil {
 		t.Errorf("error getting file to write: %v", err)
 	}
 
@@ -484,13 +484,13 @@ func TestWriteEnsureRevisionS3(t *testing.T) {
 	}
 }
 
-func TestDeleteRevisionS3(t *testing.T) {
+func TestWriteEnsureNoRevisionS3(t *testing.T) {
 	if skipS3Tests {
 		t.Skip("Skipping S3 tests")
 	}
 
 	// Copy a file into the workspace
-	if err := s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test")); err != nil {
+	if err := s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
 
@@ -504,7 +504,46 @@ func TestDeleteRevisionS3(t *testing.T) {
 	}
 
 	// Update the file
-	if err = s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2")); err != nil {
+	if err = s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{CreateRevision: new(bool)}); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// Now there should still be no revision
+	revisions, err = s3Prv.ListRevisions(context.Background(), "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+	if len(revisions) != 0 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Delete the file
+	if err = s3Prv.DeleteFile(context.Background(), "test.txt"); err != nil {
+		t.Errorf("unexpected error when deleting file: %v", err)
+	}
+}
+
+func TestDeleteRevisionS3(t *testing.T) {
+	if skipS3Tests {
+		t.Skip("Skipping S3 tests")
+	}
+
+	// Copy a file into the workspace
+	if err := s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	// List revisions, there should be none
+	revisions, err := s3Prv.ListRevisions(context.Background(), "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+	if len(revisions) != 0 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Update the file
+	if err = s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{}); err != nil {
 		t.Errorf("error getting file to write: %v", err)
 	}
 
@@ -520,7 +559,7 @@ func TestDeleteRevisionS3(t *testing.T) {
 	}
 
 	// Update the file
-	if err = s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test3")); err != nil {
+	if err = s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test3"), WriteOptions{}); err != nil {
 		t.Errorf("error getting file to write: %v", err)
 	}
 

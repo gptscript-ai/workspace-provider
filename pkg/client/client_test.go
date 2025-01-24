@@ -628,6 +628,59 @@ func TestListGetDeleteRevisionDirectoryProvider(t *testing.T) {
 	}
 }
 
+func TestNoRevisionDirectoryProvider(t *testing.T) {
+	id, err := c.Create(context.Background(), DirectoryProvider)
+	if err != nil {
+		t.Errorf("error creating workspace: %v", err)
+	}
+
+	t.Cleanup(func() {
+		if err := c.Rm(context.Background(), id); err != nil {
+			t.Errorf("unexpected error when removing parent workspace: %v", err)
+		}
+	})
+
+	// Put a file in the parent workspace
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test")); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	// Update the file to create a revision
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test2"), WriteOptions{CreateRevision: new(bool)}); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// List revisions
+	revisions, err := c.ListRevisions(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+
+	if len(revisions) != 0 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Update the file to create another revision
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test3")); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// List revisions
+	revisions, err = c.ListRevisions(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+
+	if len(revisions) != 1 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Delete the file
+	if err = c.DeleteFile(context.Background(), id, "test.txt"); err != nil {
+		t.Errorf("unexpected error when deleting file: %v", err)
+	}
+}
+
 func TestListGetDeleteRevisionS3Provider(t *testing.T) {
 	if skipS3Tests {
 		t.Skip("Skipping S3 tests")
@@ -756,6 +809,63 @@ func TestListGetDeleteRevisionS3Provider(t *testing.T) {
 	if err == nil {
 		readRev.Close()
 		t.Errorf("expected error when non-existent revision file")
+	}
+
+	// Delete the file
+	if err = c.DeleteFile(context.Background(), id, "test.txt"); err != nil {
+		t.Errorf("unexpected error when deleting file: %v", err)
+	}
+}
+
+func TestNoRevisionS3Provider(t *testing.T) {
+	if skipS3Tests {
+		t.Skip("Skipping S3 tests")
+	}
+
+	id, err := c.Create(context.Background(), S3Provider)
+	if err != nil {
+		t.Errorf("error creating workspace: %v", err)
+	}
+
+	t.Cleanup(func() {
+		if err := c.Rm(context.Background(), id); err != nil {
+			t.Errorf("unexpected error when removing parent workspace: %v", err)
+		}
+	})
+
+	// Put a file in the parent workspace
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test")); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	// Update the file to create a revision
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test2"), WriteOptions{CreateRevision: new(bool)}); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// List revisions
+	revisions, err := c.ListRevisions(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+
+	if len(revisions) != 0 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Update the file to create another revision
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test3")); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// List revisions
+	revisions, err = c.ListRevisions(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+
+	if len(revisions) != 1 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
 	}
 
 	// Delete the file

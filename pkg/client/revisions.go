@@ -33,7 +33,7 @@ func writeRevision(ctx context.Context, rClient, wClient workspaceClient, fileNa
 	}
 	defer f.Close()
 
-	return rClient.WriteFile(ctx, fmt.Sprintf("%s.%d", fileName, info.CurrentID), f)
+	return rClient.WriteFile(ctx, fmt.Sprintf("%s.%d", fileName, info.CurrentID), f, WriteOptions{})
 }
 
 func deleteRevisionInfo(ctx context.Context, client workspaceClient, fileName string) error {
@@ -46,7 +46,7 @@ func writeRevisionInfo(ctx context.Context, client workspaceClient, fileName str
 		return fmt.Errorf("failed to marshal revision info: %w", err)
 	}
 
-	return client.WriteFile(ctx, fileName+".json", bytes.NewReader(b))
+	return client.WriteFile(ctx, fileName+".json", bytes.NewReader(b), WriteOptions{})
 }
 
 func listRevisions(ctx context.Context, client workspaceClient, workspaceID, fileName string) ([]RevisionInfo, error) {
