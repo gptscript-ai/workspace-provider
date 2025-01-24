@@ -137,8 +137,8 @@ func (d *directoryProvider) OpenFile(_ context.Context, file string) (io.ReadClo
 	return d.openFile(file)
 }
 
-func (d *directoryProvider) WriteFile(ctx context.Context, fileName string, reader io.Reader) error {
-	if d.revisionsProvider != nil {
+func (d *directoryProvider) WriteFile(ctx context.Context, fileName string, reader io.Reader, opt WriteOptions) error {
+	if d.revisionsProvider != nil && (opt.CreateRevision == nil || *opt.CreateRevision) {
 		info, err := getRevisionInfo(ctx, d.revisionsProvider, fileName)
 		if err != nil {
 			if nfe := (*NotFoundError)(nil); !errors.As(err, &nfe) {

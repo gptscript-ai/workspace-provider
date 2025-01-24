@@ -103,7 +103,7 @@ func TestWriteFileWorkspaceDNE(t *testing.T) {
 		t.Fatalf("error creating workspace: %v", err)
 	}
 
-	if err = dne.WriteFile(context.Background(), "test.txt", strings.NewReader("test")); err != nil {
+	if err = dne.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
 		t.Errorf("unexpected error when writing file: %v", err)
 	}
 
@@ -130,7 +130,7 @@ func TestEnsureCannotCreateUnsafeWorkspace(t *testing.T) {
 
 func TestEnsureCannotWriteReadUnsafeFile(t *testing.T) {
 	var pathErr *os.PathError
-	if err := dirPrv.WriteFile(context.Background(), "../test.txt", strings.NewReader("test")); err == nil || !errors.As(err, &pathErr) || pathErr.Op != "OpenBeneath" {
+	if err := dirPrv.WriteFile(context.Background(), "../test.txt", strings.NewReader("test"), WriteOptions{}); err == nil || !errors.As(err, &pathErr) || pathErr.Op != "OpenBeneath" {
 		t.Errorf("unexpected error getting file to write: %v", err)
 	}
 
@@ -142,7 +142,7 @@ func TestEnsureCannotWriteReadUnsafeFile(t *testing.T) {
 
 func TestWriteAndDeleteFileInDirectory(t *testing.T) {
 	// Copy a file into the workspace
-	if err := dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test")); err != nil {
+	if err := dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
 
@@ -185,7 +185,7 @@ func TestWriteAndDeleteFileInDirectory(t *testing.T) {
 func TestWriteAndDeleteFileInDirectoryWithSubDir(t *testing.T) {
 	filePath := filepath.Join("subdir", "test.txt")
 	// Copy a file into the workspace
-	if err := dirPrv.WriteFile(context.Background(), filePath, strings.NewReader("test")); err != nil {
+	if err := dirPrv.WriteFile(context.Background(), filePath, strings.NewReader("test"), WriteOptions{}); err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
 
@@ -211,7 +211,7 @@ func TestWriteAndDeleteFileInDirectoryWithSubDir(t *testing.T) {
 }
 
 func TestFileRead(t *testing.T) {
-	if err := dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test")); err != nil {
+	if err := dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
 
@@ -248,7 +248,7 @@ func TestLs(t *testing.T) {
 	// Write a bunch of files to the directory. They can be blank
 	for i := range 7 {
 		fileName := fmt.Sprintf("test%d.txt", i)
-		if err := dirPrv.WriteFile(context.Background(), fileName, strings.NewReader("test")); err != nil {
+		if err := dirPrv.WriteFile(context.Background(), fileName, strings.NewReader("test"), WriteOptions{}); err != nil {
 			t.Fatalf("error getting file to write: %v", err)
 		}
 
@@ -301,7 +301,7 @@ func TestLsWithSubDirs(t *testing.T) {
 		if i >= 3 {
 			fileName = fmt.Sprintf("testDir%s%s", string(os.PathSeparator), fileName)
 		}
-		if err := dirPrv.WriteFile(context.Background(), fileName, strings.NewReader("test")); err != nil {
+		if err := dirPrv.WriteFile(context.Background(), fileName, strings.NewReader("test"), WriteOptions{}); err != nil {
 			t.Fatalf("error getting file to write: %v", err)
 		}
 
@@ -354,7 +354,7 @@ func TestLsWithPrefix(t *testing.T) {
 		if i >= 3 {
 			fileName = fmt.Sprintf("testDir%s%s", string(os.PathSeparator), fileName)
 		}
-		if err := dirPrv.WriteFile(context.Background(), fileName, strings.NewReader("test")); err != nil {
+		if err := dirPrv.WriteFile(context.Background(), fileName, strings.NewReader("test"), WriteOptions{}); err != nil {
 			t.Fatalf("error getting file to write: %v", err)
 		}
 
@@ -402,7 +402,7 @@ func TestRemoveAllWithPrefix(t *testing.T) {
 		if i >= 3 {
 			fileName = fmt.Sprintf("testDir%s%s", string(os.PathSeparator), fileName)
 		}
-		if err := dirPrv.WriteFile(context.Background(), fileName, strings.NewReader("test")); err != nil {
+		if err := dirPrv.WriteFile(context.Background(), fileName, strings.NewReader("test"), WriteOptions{}); err != nil {
 			t.Fatalf("error getting file to write: %v", err)
 		}
 
@@ -454,7 +454,7 @@ func TestOpeningFileDNENoError(t *testing.T) {
 
 func TestWriteEnsureRevision(t *testing.T) {
 	// Copy a file into the workspace
-	if err := dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test")); err != nil {
+	if err := dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
 
@@ -468,7 +468,7 @@ func TestWriteEnsureRevision(t *testing.T) {
 	}
 
 	// Update the file
-	if err = dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2")); err != nil {
+	if err = dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{}); err != nil {
 		t.Errorf("error getting file to write: %v", err)
 	}
 
@@ -547,9 +547,9 @@ func TestWriteEnsureRevision(t *testing.T) {
 	}
 }
 
-func TestDeleteRevision(t *testing.T) {
+func TestWriteEnsureNoRevision(t *testing.T) {
 	// Copy a file into the workspace
-	if err := dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test")); err != nil {
+	if err := dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
 
@@ -563,7 +563,42 @@ func TestDeleteRevision(t *testing.T) {
 	}
 
 	// Update the file
-	if err = dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2")); err != nil {
+	if err = dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{CreateRevision: new(bool)}); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// Now there should still be no revision
+	revisions, err = dirPrv.ListRevisions(context.Background(), "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+	if len(revisions) != 0 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Delete the file
+	if err = dirPrv.DeleteFile(context.Background(), "test.txt"); err != nil {
+		t.Errorf("unexpected error when deleting file: %v", err)
+	}
+}
+
+func TestDeleteRevision(t *testing.T) {
+	// Copy a file into the workspace
+	if err := dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	// List revisions, there should be none
+	revisions, err := dirPrv.ListRevisions(context.Background(), "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+	if len(revisions) != 0 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Update the file
+	if err = dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{}); err != nil {
 		t.Errorf("error getting file to write: %v", err)
 	}
 
@@ -579,7 +614,7 @@ func TestDeleteRevision(t *testing.T) {
 	}
 
 	// Update the file
-	if err = dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test3")); err != nil {
+	if err = dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test3"), WriteOptions{}); err != nil {
 		t.Errorf("error getting file to write: %v", err)
 	}
 
