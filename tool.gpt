@@ -39,8 +39,9 @@ Description: Write a file in a workspace
 Parameter: workspace_id: The ID of the workspaces to write the file in
 Parameter: file_path: The name of the file to write
 Parameter: body: The base64 encoded contents of the file to write
+Parameter: create_revision: Whether to create a revision of the change to the file
 
-#!http://Server.daemon.gptscript.local/write-file/${WORKSPACE_ID}/${FILE_PATH}
+#!http://Server.daemon.gptscript.local/write-file/${WORKSPACE_ID}/${FILE_PATH}?createRevision=${CREATE_REVISION}
 
 ---
 Name: Read File in Workspace
