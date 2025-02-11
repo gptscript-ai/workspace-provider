@@ -10,7 +10,7 @@ import (
 )
 
 type workspaceProvider struct {
-	Provider       string `usage:"The workspace provider to use, valid options are 'directory' and 's3'" default:"directory" env:"WORKSPACE_PROVIDER_PROVIDER"`
+	Provider       string `usage:"The workspace provider to use, valid options are 'directory' and 's3'" default:"directory" env:"WORKSPACE_PROVIDER_PROVIDER,PROVIDER"`
 	DataHome       string `usage:"The data home directory or bucket name" env:"WORKSPACE_PROVIDER_DATA_HOME"`
 	S3Bucket       string `usage:"The S3 bucket name" name:"s3-bucket" env:"WORKSPACE_PROVIDER_S3_BUCKET"`
 	S3BaseEndpoint string `usage:"The S3 base endpoint to use with S3 compatible providers" name:"s3-base-endpoint" env:"WORKSPACE_PROVIDER_S3_BASE_ENDPOINT"`
@@ -30,6 +30,7 @@ func New() *cobra.Command {
 		&rmFile{root: w},
 		&readFile{root: w},
 		&server{root: w},
+		&validateEnv{root: w},
 	)
 
 	c.CompletionOptions.HiddenDefaultCmd = true

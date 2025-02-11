@@ -101,6 +101,13 @@ Parameter: revision_id: The id of the revision to return
 #!http://Server.daemon.gptscript.local/delete-revision/${WORKSPACE_ID}/${FILE_PATH}/${REVISION_ID}
 
 ---
+Name: Validate Environment Variables
+Description: Validate the environment variables
+Parameter: provider: The workspace provider to validate
+
+#!${GPTSCRIPT_TOOL_DIR}/bin/gptscript-go-tool validate-env
+
+---
 Name: Server
 Description: Start the workspace-provider server
 
