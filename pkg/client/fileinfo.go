@@ -16,5 +16,5 @@ type RevisionInfo struct {
 }
 
 type revisionInfo struct {
-	CurrentID int `json:"currentID"`
+	CurrentID int64 `json:"currentID"`
 }

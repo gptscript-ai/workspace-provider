@@ -13,9 +13,9 @@ func (s *server) writeFile(w http.ResponseWriter, r *http.Request) {
 	fileName := r.PathValue("fileName")
 	query := r.URL.Query()
 
-	opts := client.WriteOptions{}
-	if query.Get("createRevision") == "false" {
-		opts.CreateRevision = new(bool)
+	opts := client.WriteOptions{
+		LatestRevision: query.Get("latestRevision"),
+		CreateRevision: toPtr(query.Get("createRevision") != "false"),
 	}
 
 	if err := s.client.WriteFile(r.Context(), id, fileName, base64.NewDecoder(base64.StdEncoding, r.Body), opts); err != nil {
@@ -25,4 +25,8 @@ func (s *server) writeFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, _ = w.Write([]byte(fmt.Sprintf("file %s has been written to workspace %s", fileName, id)))
+}
+
+func toPtr[T any](t T) *T {
+	return &t
 }

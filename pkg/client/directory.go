@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/adrg/xdg"
@@ -143,6 +144,17 @@ func (d *directoryProvider) WriteFile(ctx context.Context, fileName string, read
 		if err != nil {
 			if nfe := (*NotFoundError)(nil); !errors.As(err, &nfe) {
 				return err
+			}
+		}
+
+		if opt.LatestRevision != "" {
+			requiredLatestRevision, err := strconv.ParseInt(opt.LatestRevision, 10, 64)
+			if err != nil {
+				return fmt.Errorf("failed to parse latest revision for write: %w", err)
+			}
+
+			if requiredLatestRevision != info.CurrentID {
+				return newConflictError(DirectoryProvider+"://"+d.dataHome, fileName, opt.LatestRevision, fmt.Sprintf("%d", info.CurrentID))
 			}
 		}
 

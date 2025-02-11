@@ -8,6 +8,7 @@ import (
 	"io"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -181,6 +182,17 @@ func (s *s3Provider) WriteFile(ctx context.Context, fileName string, reader io.R
 		if err != nil {
 			if nfe := (*NotFoundError)(nil); !errors.As(err, &nfe) {
 				return err
+			}
+		}
+
+		if opt.LatestRevision != "" {
+			requiredLatestRevision, err := strconv.ParseInt(opt.LatestRevision, 10, 64)
+			if err != nil {
+				return fmt.Errorf("failed to parse latest revision for write: %w", err)
+			}
+
+			if requiredLatestRevision != info.CurrentID {
+				return newConflictError(S3Provider+"://"+s.bucket, fileName, opt.LatestRevision, fmt.Sprintf("%d", info.CurrentID))
 			}
 		}
 
