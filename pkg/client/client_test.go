@@ -628,59 +628,6 @@ func TestListGetDeleteRevisionDirectoryProvider(t *testing.T) {
 	}
 }
 
-func TestNoRevisionDirectoryProvider(t *testing.T) {
-	id, err := c.Create(context.Background(), DirectoryProvider)
-	if err != nil {
-		t.Errorf("error creating workspace: %v", err)
-	}
-
-	t.Cleanup(func() {
-		if err := c.Rm(context.Background(), id); err != nil {
-			t.Errorf("unexpected error when removing parent workspace: %v", err)
-		}
-	})
-
-	// Put a file in the parent workspace
-	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test")); err != nil {
-		t.Fatalf("error getting file to write: %v", err)
-	}
-
-	// Update the file to create a revision
-	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test2"), WriteOptions{CreateRevision: new(bool)}); err != nil {
-		t.Errorf("error getting file to write: %v", err)
-	}
-
-	// List revisions
-	revisions, err := c.ListRevisions(context.Background(), id, "test.txt")
-	if err != nil {
-		t.Errorf("unexpected error when listing revisions: %v", err)
-	}
-
-	if len(revisions) != 0 {
-		t.Errorf("unexpected number of revisions: %d", len(revisions))
-	}
-
-	// Update the file to create another revision
-	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test3")); err != nil {
-		t.Errorf("error getting file to write: %v", err)
-	}
-
-	// List revisions
-	revisions, err = c.ListRevisions(context.Background(), id, "test.txt")
-	if err != nil {
-		t.Errorf("unexpected error when listing revisions: %v", err)
-	}
-
-	if len(revisions) != 1 {
-		t.Errorf("unexpected number of revisions: %d", len(revisions))
-	}
-
-	// Delete the file
-	if err = c.DeleteFile(context.Background(), id, "test.txt"); err != nil {
-		t.Errorf("unexpected error when deleting file: %v", err)
-	}
-}
-
 func TestListGetDeleteRevisionS3Provider(t *testing.T) {
 	if skipS3Tests {
 		t.Skip("Skipping S3 tests")
@@ -817,6 +764,59 @@ func TestListGetDeleteRevisionS3Provider(t *testing.T) {
 	}
 }
 
+func TestNoRevisionDirectoryProvider(t *testing.T) {
+	id, err := c.Create(context.Background(), DirectoryProvider)
+	if err != nil {
+		t.Errorf("error creating workspace: %v", err)
+	}
+
+	t.Cleanup(func() {
+		if err := c.Rm(context.Background(), id); err != nil {
+			t.Errorf("unexpected error when removing parent workspace: %v", err)
+		}
+	})
+
+	// Put a file in the parent workspace
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test")); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	// Update the file to create a revision
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test2"), WriteOptions{CreateRevision: new(bool)}); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// List revisions
+	revisions, err := c.ListRevisions(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+
+	if len(revisions) != 0 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Update the file to create another revision
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test3")); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// List revisions
+	revisions, err = c.ListRevisions(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+
+	if len(revisions) != 1 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Delete the file
+	if err = c.DeleteFile(context.Background(), id, "test.txt"); err != nil {
+		t.Errorf("unexpected error when deleting file: %v", err)
+	}
+}
+
 func TestNoRevisionS3Provider(t *testing.T) {
 	if skipS3Tests {
 		t.Skip("Skipping S3 tests")
@@ -866,6 +866,176 @@ func TestNoRevisionS3Provider(t *testing.T) {
 
 	if len(revisions) != 1 {
 		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Delete the file
+	if err = c.DeleteFile(context.Background(), id, "test.txt"); err != nil {
+		t.Errorf("unexpected error when deleting file: %v", err)
+	}
+}
+
+func TestConflictErrorDirectoryProvider(t *testing.T) {
+	id, err := c.Create(context.Background(), DirectoryProvider)
+	if err != nil {
+		t.Errorf("error creating workspace: %v", err)
+	}
+
+	t.Cleanup(func() {
+		if err := c.Rm(context.Background(), id); err != nil {
+			t.Errorf("unexpected error when removing parent workspace: %v", err)
+		}
+	})
+
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test")); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	ce := (*ConflictError)(nil)
+	// Trying to update the file with a non-zero revision ID should fail with a conflict error.
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test2"), WriteOptions{LatestRevision: "1"}); err == nil || !errors.As(err, &ce) {
+		t.Errorf("expected error when first updating file non-zero revision ID: %v", err)
+	}
+
+	// Update the file
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test2")); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// List revisions
+	revisions, err := c.ListRevisions(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+
+	if len(revisions) != 1 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Update the file with the revision ID
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test3"), WriteOptions{LatestRevision: revisions[0].RevisionID}); err != nil {
+		t.Errorf("unexpected error when updating file with revision ID: %v", err)
+	}
+
+	// List revisions
+	revisions, err = c.ListRevisions(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+
+	if len(revisions) != 2 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Updating the file with the same revision ID should fail with a conflict error.
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test4"), WriteOptions{LatestRevision: revisions[0].RevisionID}); err == nil || !errors.As(err, &ce) {
+		t.Errorf("expected error when updating file with same revision ID: %v", err)
+	}
+
+	// Delete the most recent revision
+	if err = c.DeleteRevision(context.Background(), id, "test.txt", revisions[0].RevisionID); err != nil {
+		t.Errorf("unexpected error when deleting revision: %v", err)
+	}
+
+	// List revisions
+	revisions, err = c.ListRevisions(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+
+	if len(revisions) != 1 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Ensure we can still write a new revision
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test3"), WriteOptions{LatestRevision: revisions[0].RevisionID}); err != nil {
+		t.Errorf("unexpected error when updating file with revision ID: %v", err)
+	}
+
+	// Delete the file
+	if err = c.DeleteFile(context.Background(), id, "test.txt"); err != nil {
+		t.Errorf("unexpected error when deleting file: %v", err)
+	}
+}
+
+func TestConflictErrorS3Provider(t *testing.T) {
+	if skipS3Tests {
+		t.Skip("Skipping S3 tests")
+	}
+
+	id, err := c.Create(context.Background(), S3Provider)
+	if err != nil {
+		t.Errorf("error creating workspace: %v", err)
+	}
+
+	t.Cleanup(func() {
+		if err := c.Rm(context.Background(), id); err != nil {
+			t.Errorf("unexpected error when removing parent workspace: %v", err)
+		}
+	})
+
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test")); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	ce := (*ConflictError)(nil)
+	// Trying to update the file with a non-zero revision ID should fail with a conflict error.
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test2"), WriteOptions{LatestRevision: "1"}); err == nil || !errors.As(err, &ce) {
+		t.Errorf("expected error when first updating file non-zero revision ID: %v", err)
+	}
+
+	// Update the file
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test2")); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// List revisions
+	revisions, err := c.ListRevisions(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+
+	if len(revisions) != 1 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Update the file with the revision ID
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test3"), WriteOptions{LatestRevision: revisions[0].RevisionID}); err != nil {
+		t.Errorf("unexpected error when updating file with revision ID: %v", err)
+	}
+
+	// List revisions
+	revisions, err = c.ListRevisions(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+
+	if len(revisions) != 2 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Updating the file with the same revision ID should fail with a conflict error.
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test4"), WriteOptions{LatestRevision: revisions[0].RevisionID}); err == nil || !errors.As(err, &ce) {
+		t.Errorf("expected error when updating file with same revision ID: %v", err)
+	}
+
+	// Delete the most recent revision
+	if err = c.DeleteRevision(context.Background(), id, "test.txt", revisions[1].RevisionID); err != nil {
+		t.Errorf("error deleting revision: %v", err)
+	}
+
+	// List revisions
+	revisions, err = c.ListRevisions(context.Background(), id, "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+
+	if len(revisions) != 1 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Ensure we can still write a new revision
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test5"), WriteOptions{LatestRevision: revisions[0].RevisionID}); err != nil {
+		t.Errorf("error getting file to write: %v", err)
 	}
 
 	// Delete the file

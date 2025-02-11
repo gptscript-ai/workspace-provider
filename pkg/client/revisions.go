@@ -56,7 +56,7 @@ func listRevisions(ctx context.Context, client workspaceClient, workspaceID, fil
 	}
 
 	revisions := make([]RevisionInfo, 0, info.CurrentID)
-	for i := 1; i <= info.CurrentID; i++ {
+	for i := int64(1); i <= info.CurrentID; i++ {
 		id := fmt.Sprintf("%d", i)
 		f, err := client.StatFile(ctx, fmt.Sprintf("%s.%s", fileName, id))
 		if err != nil {
@@ -79,7 +79,21 @@ func listRevisions(ctx context.Context, client workspaceClient, workspaceID, fil
 }
 
 func deleteRevision(ctx context.Context, client workspaceClient, fileName string, revisionID string) error {
-	return client.DeleteFile(ctx, fmt.Sprintf("%s.%s", fileName, revisionID))
+	if err := client.DeleteFile(ctx, fmt.Sprintf("%s.%s", fileName, revisionID)); err != nil {
+		return err
+	}
+
+	info, err := getRevisionInfo(ctx, client, fileName)
+	if err != nil {
+		return err
+	}
+
+	if fmt.Sprintf("%d", info.CurrentID) != revisionID {
+		return nil
+	}
+
+	info.CurrentID--
+	return writeRevisionInfo(ctx, client, fileName, info)
 }
 
 func getRevision(ctx context.Context, client workspaceClient, fileName string, revisionID string) (io.ReadCloser, error) {

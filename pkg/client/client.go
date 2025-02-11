@@ -170,6 +170,8 @@ func (c *Client) OpenFile(ctx context.Context, id, fileName string) (io.ReadClos
 
 type WriteOptions struct {
 	CreateRevision *bool
+	// If LatestRevision is set, then a conflict error will be returned if that revision is not the latest.
+	LatestRevision string
 }
 
 func (c *Client) WriteFile(ctx context.Context, id, fileName string, reader io.Reader, opts ...WriteOptions) error {
@@ -177,6 +179,9 @@ func (c *Client) WriteFile(ctx context.Context, id, fileName string, reader io.R
 	for _, o := range opts {
 		if o.CreateRevision != nil {
 			opt.CreateRevision = o.CreateRevision
+		}
+		if o.LatestRevision != "" {
+			opt.LatestRevision = o.LatestRevision
 		}
 	}
 	wc, err := c.getClient(id)
