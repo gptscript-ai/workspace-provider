@@ -134,8 +134,25 @@ func (d *directoryProvider) DeleteFile(ctx context.Context, file string) error {
 	return nil
 }
 
-func (d *directoryProvider) OpenFile(_ context.Context, file string) (io.ReadCloser, error) {
-	return d.openFile(file)
+func (d *directoryProvider) OpenFile(ctx context.Context, file string, opt OpenOptions) (*File, error) {
+	f, err := d.openFile(file)
+	if err != nil {
+		return nil, err
+	}
+
+	var revision string
+	if opt.WithLatestRevisionID {
+		rev, err := getRevisionInfo(ctx, d.revisionsProvider, file)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get revision info: %w", err)
+		}
+		revision = strconv.FormatInt(rev.CurrentID, 10)
+	}
+
+	return &File{
+		ReadCloser: f,
+		RevisionID: revision,
+	}, nil
 }
 
 func (d *directoryProvider) WriteFile(ctx context.Context, fileName string, reader io.Reader, opt WriteOptions) error {
@@ -147,14 +164,14 @@ func (d *directoryProvider) WriteFile(ctx context.Context, fileName string, read
 			}
 		}
 
-		if opt.LatestRevision != "" {
-			requiredLatestRevision, err := strconv.ParseInt(opt.LatestRevision, 10, 64)
+		if opt.LatestRevisionID != "" {
+			requiredLatestRevision, err := strconv.ParseInt(opt.LatestRevisionID, 10, 64)
 			if err != nil {
 				return fmt.Errorf("failed to parse latest revision for write: %w", err)
 			}
 
 			if requiredLatestRevision != info.CurrentID {
-				return newConflictError(DirectoryProvider+"://"+d.dataHome, fileName, opt.LatestRevision, fmt.Sprintf("%d", info.CurrentID))
+				return newConflictError(DirectoryProvider+"://"+d.dataHome, fileName, opt.LatestRevisionID, fmt.Sprintf("%d", info.CurrentID))
 			}
 		}
 
@@ -173,8 +190,8 @@ func (d *directoryProvider) WriteFile(ctx context.Context, fileName string, read
 	return d.writeFile(fileName, reader)
 }
 
-func (d *directoryProvider) StatFile(_ context.Context, s string) (FileInfo, error) {
-	return d.statFile(s)
+func (d *directoryProvider) StatFile(ctx context.Context, s string, opt StatOptions) (FileInfo, error) {
+	return d.statFile(ctx, s, opt)
 }
 
 func (d *directoryProvider) Ls(ctx context.Context, prefix string) ([]string, error) {
@@ -203,7 +220,7 @@ func (d *directoryProvider) ListRevisions(ctx context.Context, fileName string) 
 	return listRevisions(ctx, d.revisionsProvider, fmt.Sprintf("%s://%s", DirectoryProvider, d.dataHome), fileName)
 }
 
-func (d *directoryProvider) GetRevision(ctx context.Context, fileName, revisionID string) (io.ReadCloser, error) {
+func (d *directoryProvider) GetRevision(ctx context.Context, fileName, revisionID string) (*File, error) {
 	return getRevision(ctx, d.revisionsProvider, fileName, revisionID)
 }
 
@@ -255,7 +272,7 @@ func (d *directoryProvider) deleteFile(fileName string) error {
 	return nil
 }
 
-func (d *directoryProvider) statFile(s string) (FileInfo, error) {
+func (d *directoryProvider) statFile(ctx context.Context, s string, opt StatOptions) (FileInfo, error) {
 	f, err := safeopen.OpenBeneath(d.dataHome, s)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -277,12 +294,22 @@ func (d *directoryProvider) statFile(s string) (FileInfo, error) {
 	}
 	mime := strings.Split(mt.String(), ";")[0]
 
+	var revision string
+	if opt.WithLatestRevisionID {
+		rev, err := getRevisionInfo(ctx, d.revisionsProvider, s)
+		if err != nil {
+			return FileInfo{}, err
+		}
+		revision = strconv.FormatInt(rev.CurrentID, 10)
+	}
+
 	return FileInfo{
 		WorkspaceID: DirectoryProvider + "://" + d.dataHome,
 		Name:        stat.Name(),
 		Size:        stat.Size(),
 		ModTime:     stat.ModTime(),
 		MimeType:    mime,
+		RevisionID:  revision,
 	}, nil
 }
 
