@@ -1,8 +1,11 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 )
+
+var ErrRevisionNotRequested = errors.New("revision not requested")
 
 type NotFoundError struct {
 	id   string

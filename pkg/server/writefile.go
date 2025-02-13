@@ -14,8 +14,8 @@ func (s *server) writeFile(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 
 	opts := client.WriteOptions{
-		LatestRevision: query.Get("latestRevision"),
-		CreateRevision: toPtr(query.Get("createRevision") != "false"),
+		LatestRevisionID: query.Get("latestRevision"),
+		CreateRevision:   toPtr(query.Get("createRevision") != "false"),
 	}
 
 	if err := s.client.WriteFile(r.Context(), id, fileName, base64.NewDecoder(base64.StdEncoding, r.Body), opts); err != nil {

@@ -6,14 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 )
 
 const revisionsDir = "revisions"
 
 func getRevisionInfo(ctx context.Context, client workspaceClient, fileName string) (revisionInfo, error) {
 	var info revisionInfo
-	f, err := client.OpenFile(ctx, fileName+".json")
+	f, err := client.OpenFile(ctx, fileName+".json", OpenOptions{})
 	if err != nil {
 		if nfe := (*NotFoundError)(nil); errors.As(err, &nfe) {
 			info.CurrentID = -1
@@ -27,7 +26,7 @@ func getRevisionInfo(ctx context.Context, client workspaceClient, fileName strin
 }
 
 func writeRevision(ctx context.Context, rClient, wClient workspaceClient, fileName string, info revisionInfo) error {
-	f, err := wClient.OpenFile(ctx, fileName)
+	f, err := wClient.OpenFile(ctx, fileName, OpenOptions{})
 	if err != nil {
 		return err
 	}
@@ -58,7 +57,7 @@ func listRevisions(ctx context.Context, client workspaceClient, workspaceID, fil
 	revisions := make([]RevisionInfo, 0, info.CurrentID)
 	for i := int64(1); i <= info.CurrentID; i++ {
 		id := fmt.Sprintf("%d", i)
-		f, err := client.StatFile(ctx, fmt.Sprintf("%s.%s", fileName, id))
+		f, err := client.StatFile(ctx, fmt.Sprintf("%s.%s", fileName, id), StatOptions{})
 		if err != nil {
 			if nfe := (*NotFoundError)(nil); errors.As(err, &nfe) {
 				continue
@@ -79,23 +78,17 @@ func listRevisions(ctx context.Context, client workspaceClient, workspaceID, fil
 }
 
 func deleteRevision(ctx context.Context, client workspaceClient, fileName string, revisionID string) error {
-	if err := client.DeleteFile(ctx, fmt.Sprintf("%s.%s", fileName, revisionID)); err != nil {
-		return err
-	}
-
-	info, err := getRevisionInfo(ctx, client, fileName)
-	if err != nil {
-		return err
-	}
-
-	if fmt.Sprintf("%d", info.CurrentID) != revisionID {
-		return nil
-	}
-
-	info.CurrentID--
-	return writeRevisionInfo(ctx, client, fileName, info)
+	return client.DeleteFile(ctx, fmt.Sprintf("%s.%s", fileName, revisionID))
 }
 
-func getRevision(ctx context.Context, client workspaceClient, fileName string, revisionID string) (io.ReadCloser, error) {
-	return client.OpenFile(ctx, fmt.Sprintf("%s.%s", fileName, revisionID))
+func getRevision(ctx context.Context, client workspaceClient, fileName string, revisionID string) (*File, error) {
+	f, err := client.OpenFile(ctx, fmt.Sprintf("%s.%s", fileName, revisionID), OpenOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	return &File{
+		ReadCloser: f,
+		RevisionID: revisionID,
+	}, nil
 }

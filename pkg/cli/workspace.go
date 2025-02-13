@@ -31,6 +31,7 @@ func New() *cobra.Command {
 		&readFile{root: w},
 		&server{root: w},
 		&validateEnv{root: w},
+		&statFile{root: w},
 	)
 
 	c.CompletionOptions.HiddenDefaultCmd = true

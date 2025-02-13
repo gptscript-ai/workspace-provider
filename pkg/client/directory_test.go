@@ -135,7 +135,7 @@ func TestEnsureCannotWriteReadUnsafeFile(t *testing.T) {
 	}
 
 	pathErr = nil
-	if _, err := dirPrv.OpenFile(context.Background(), "../test.txt"); err == nil || !errors.As(err, &pathErr) || pathErr.Op != "OpenBeneath" {
+	if _, err := dirPrv.OpenFile(context.Background(), "../test.txt", OpenOptions{}); err == nil || !errors.As(err, &pathErr) || pathErr.Op != "OpenBeneath" {
 		t.Errorf("unexpected error when deleting file: %v", err)
 	}
 }
@@ -153,7 +153,7 @@ func TestWriteAndDeleteFileInDirectory(t *testing.T) {
 	}
 
 	// Stat the file and compare with the original
-	providerStat, err := dirPrv.StatFile(context.Background(), "test.txt")
+	providerStat, err := dirPrv.StatFile(context.Background(), "test.txt", StatOptions{})
 	if err != nil {
 		t.Errorf("unexpected error when statting file: %v", err)
 	}
@@ -215,7 +215,7 @@ func TestFileRead(t *testing.T) {
 		t.Fatalf("error getting file to write: %v", err)
 	}
 
-	readFile, err := dirPrv.OpenFile(context.Background(), "test.txt")
+	readFile, err := dirPrv.OpenFile(context.Background(), "test.txt", OpenOptions{})
 	if err != nil {
 		t.Errorf("unexpected error when reading file: %v", err)
 	}
@@ -444,7 +444,7 @@ func TestRemoveAllWithPrefix(t *testing.T) {
 
 func TestOpeningFileDNENoError(t *testing.T) {
 	var notFoundError *NotFoundError
-	if file, err := dirPrv.OpenFile(context.Background(), "test.txt"); err == nil {
+	if file, err := dirPrv.OpenFile(context.Background(), "test.txt", OpenOptions{}); err == nil {
 		_ = file.Close()
 		t.Errorf("expected error when deleting file that doesn't exist")
 	} else if !errors.As(err, &notFoundError) {
@@ -519,6 +519,14 @@ func TestWriteEnsureRevision(t *testing.T) {
 
 		if string(content) != "test" {
 			t.Errorf("unexpected content: %s", string(content))
+		}
+
+		revisionID, err := rev.GetRevisionID()
+		if err != nil {
+			t.Errorf("error getting revision: %v", err)
+		}
+		if revisionID != "1" {
+			t.Errorf("unexpected revision ID: %s", revisionID)
 		}
 	}
 
@@ -599,7 +607,7 @@ func TestWriteEnsureConflict(t *testing.T) {
 
 	ce := (*ConflictError)(nil)
 	// Trying to update the file with a non-zero revision ID should fail with a conflict error.
-	if err = dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{LatestRevision: "1"}); err == nil || !errors.As(err, &ce) {
+	if err = dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{LatestRevisionID: "1"}); err == nil || !errors.As(err, &ce) {
 		t.Errorf("expected error when first updating file non-zero revision ID: %v", err)
 	}
 
@@ -618,7 +626,7 @@ func TestWriteEnsureConflict(t *testing.T) {
 	}
 
 	// Update the file again
-	if err = dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test3"), WriteOptions{LatestRevision: revisions[0].RevisionID}); err != nil {
+	if err = dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test3"), WriteOptions{LatestRevisionID: revisions[0].RevisionID}); err != nil {
 		t.Errorf("error getting file to write: %v", err)
 	}
 
@@ -633,12 +641,13 @@ func TestWriteEnsureConflict(t *testing.T) {
 
 	ce = (*ConflictError)(nil)
 	// Trying to update the file again with the same revision ID should fail with a conflict error.
-	if err = dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test4"), WriteOptions{LatestRevision: revisions[0].RevisionID}); err == nil || !errors.As(err, &ce) {
+	if err = dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test4"), WriteOptions{LatestRevisionID: revisions[0].RevisionID}); err == nil || !errors.As(err, &ce) {
 		t.Errorf("expected error when updating file with same revision ID: %v", err)
 	}
 
+	latestRevisionID := revisions[1].RevisionID
 	// Delete the most recent revision
-	if err = dirPrv.DeleteRevision(context.Background(), "test.txt", revisions[1].RevisionID); err != nil {
+	if err = dirPrv.DeleteRevision(context.Background(), "test.txt", latestRevisionID); err != nil {
 		t.Errorf("error deleting revision: %v", err)
 	}
 
@@ -651,9 +660,92 @@ func TestWriteEnsureConflict(t *testing.T) {
 		t.Errorf("unexpected number of revisions: %d", len(revisions))
 	}
 
+	// We cannot update the file with this revision ID
+	ce = (*ConflictError)(nil)
+	if err = dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test5"), WriteOptions{LatestRevisionID: revisions[0].RevisionID}); err == nil || !errors.As(err, &ce) {
+		t.Errorf("expected error when updating file with zero revision ID: %v", err)
+	}
+
 	// Ensure that we can still create a new revision
-	if err = dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test5"), WriteOptions{LatestRevision: revisions[0].RevisionID}); err != nil {
+	if err = dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test5"), WriteOptions{LatestRevisionID: latestRevisionID}); err != nil {
 		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// Delete the file
+	if err = dirPrv.DeleteFile(context.Background(), "test.txt"); err != nil {
+		t.Errorf("error removing file: %v", err)
+	}
+}
+
+func TestReadFileWithRevision(t *testing.T) {
+	// Copy a file into the workspace
+	if err := dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	// Read the file
+	f, err := dirPrv.OpenFile(context.Background(), "test.txt", OpenOptions{WithLatestRevisionID: true})
+	if err != nil {
+		t.Errorf("error reading file: %v", err)
+	}
+
+	// Read the file contents
+	data, err := io.ReadAll(f)
+	if err != nil {
+		t.Errorf("error reading file contents: %v", err)
+	}
+
+	// Close the file
+	if err := f.Close(); err != nil {
+		t.Errorf("error closing file: %v", err)
+	}
+
+	if string(data) != "test" {
+		t.Errorf("unexpected file contents: %s", string(data))
+	}
+
+	// Ensure that the revision is set and correct.
+	revisionID, err := f.GetRevisionID()
+	if err != nil {
+		t.Errorf("error getting revision: %v", err)
+	}
+	if revisionID != "0" {
+		t.Errorf("unexpected revision ID: %s", revisionID)
+	}
+
+	// Update the file
+	if err = dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{LatestRevisionID: "0"}); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// Read the file
+	f, err = dirPrv.OpenFile(context.Background(), "test.txt", OpenOptions{WithLatestRevisionID: true})
+	if err != nil {
+		t.Errorf("error reading file: %v", err)
+	}
+
+	// Read the file contents
+	data, err = io.ReadAll(f)
+	if err != nil {
+		t.Errorf("error reading file contents: %v", err)
+	}
+
+	// Close the file
+	if err := f.Close(); err != nil {
+		t.Errorf("error closing file: %v", err)
+	}
+
+	if string(data) != "test2" {
+		t.Errorf("unexpected file contents: %s", string(data))
+	}
+
+	// Get the revision ID
+	revisionID, err = f.GetRevisionID()
+	if err != nil {
+		t.Errorf("error getting revision: %v", err)
+	}
+	if revisionID != "1" {
+		t.Errorf("unexpected revision ID: %s", revisionID)
 	}
 
 	// Delete the file
@@ -746,5 +838,46 @@ func TestNoCreateRevisionsClient(t *testing.T) {
 	_, err := directoryFactory.New(fmt.Sprintf("%s://revisions", directoryTestingID))
 	if err == nil {
 		t.Errorf("expected error when creating client for revisions dir")
+	}
+}
+
+func TestStatFile(t *testing.T) {
+	// Copy a file into the workspace
+	if err := dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	// Stat the file
+	providerStat, err := dirPrv.StatFile(context.Background(), "test.txt", StatOptions{})
+	if err != nil {
+		t.Errorf("unexpected error when statting file: %v", err)
+	}
+
+	if providerStat.WorkspaceID != directoryTestingID {
+		t.Errorf("unexpected workspace id: %s", providerStat.WorkspaceID)
+	}
+	if providerStat.Size != 4 {
+		t.Errorf("unexpected file size: %d", providerStat.Size)
+	}
+	if providerStat.Name != "test.txt" {
+		t.Errorf("unexpected file name: %s", providerStat.Name)
+	}
+	if providerStat.ModTime.IsZero() {
+		t.Errorf("unexpected file mod time: %s", providerStat.ModTime)
+	}
+	if _, err := providerStat.GetRevisionID(); !errors.Is(err, ErrRevisionNotRequested) {
+		t.Errorf("unexpected error when revision not requested: %v", err)
+	}
+
+	// Stat the file with revision
+	providerStat, err = dirPrv.StatFile(context.Background(), "test.txt", StatOptions{WithLatestRevisionID: true})
+	if err != nil {
+		t.Errorf("unexpected error when statting file: %v", err)
+	}
+
+	if rev, err := providerStat.GetRevisionID(); err != nil {
+		t.Errorf("unexpected error when revision not requested: %v", err)
+	} else if rev != "0" {
+		t.Errorf("unexpected revision id when revision requested: %s", rev)
 	}
 }
