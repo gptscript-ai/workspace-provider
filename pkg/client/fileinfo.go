@@ -13,7 +13,7 @@ type FileInfo struct {
 
 func (f *FileInfo) GetRevisionID() (string, error) {
 	if f.RevisionID == "" {
-		return "", ErrRevisionNotRequested
+		return "", RevisionNotRequestedError
 	}
 	return f.RevisionID, nil
 }

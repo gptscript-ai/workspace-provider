@@ -611,6 +611,11 @@ func TestWriteEnsureConflict(t *testing.T) {
 		t.Errorf("expected error when first updating file non-zero revision ID: %v", err)
 	}
 
+	// Also, using -1 for the revision ID should also fail because that is the same as "only write if the file doesn't exist"
+	if err = dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{LatestRevisionID: "-1"}); err == nil || !errors.As(err, &ce) {
+		t.Errorf("expected error when first updating file non-zero revision ID: %v", err)
+	}
+
 	// Update the file
 	if err = dirPrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{}); err != nil {
 		t.Errorf("error getting file to write: %v", err)
@@ -865,7 +870,7 @@ func TestStatFile(t *testing.T) {
 	if providerStat.ModTime.IsZero() {
 		t.Errorf("unexpected file mod time: %s", providerStat.ModTime)
 	}
-	if _, err := providerStat.GetRevisionID(); !errors.Is(err, ErrRevisionNotRequested) {
+	if _, err := providerStat.GetRevisionID(); !errors.Is(err, RevisionNotRequestedError) {
 		t.Errorf("unexpected error when revision not requested: %v", err)
 	}
 

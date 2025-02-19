@@ -896,6 +896,12 @@ func TestConflictErrorDirectoryProvider(t *testing.T) {
 		t.Errorf("expected error when first updating file non-zero revision ID: %v", err)
 	}
 
+	fe := (*FileExistsError)(nil)
+	// Also, using IfNotExists: true should fail with a file exists error
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test2"), WriteOptions{IfNotExists: true}); err == nil || !errors.As(err, &fe) {
+		t.Errorf("expected error when first updating file non-zero revision ID: %v", err)
+	}
+
 	// Update the file
 	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test2")); err != nil {
 		t.Errorf("error getting file to write: %v", err)
@@ -981,6 +987,12 @@ func TestConflictErrorS3Provider(t *testing.T) {
 	ce := (*ConflictError)(nil)
 	// Trying to update the file with a non-zero revision ID should fail with a conflict error.
 	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test2"), WriteOptions{LatestRevisionID: "1"}); err == nil || !errors.As(err, &ce) {
+		t.Errorf("expected error when first updating file non-zero revision ID: %v", err)
+	}
+
+	fe := (*FileExistsError)(nil)
+	// Also, using IfNotExists: true should fail with a file exists error
+	if err = c.WriteFile(context.Background(), id, "test.txt", strings.NewReader("test2"), WriteOptions{IfNotExists: true}); err == nil || !errors.As(err, &fe) {
 		t.Errorf("expected error when first updating file non-zero revision ID: %v", err)
 	}
 
@@ -1085,7 +1097,7 @@ func TestOpenFileWithRevisionDirectoryProvider(t *testing.T) {
 	}
 
 	_, err = f.GetRevisionID()
-	if !errors.Is(err, ErrRevisionNotRequested) {
+	if !errors.Is(err, RevisionNotRequestedError) {
 		t.Errorf("unexpected error when getting revision: %v", err)
 	}
 
@@ -1168,7 +1180,7 @@ func TestOpenFileWithRevisionS3Provider(t *testing.T) {
 	}
 
 	_, err = f.GetRevisionID()
-	if !errors.Is(err, ErrRevisionNotRequested) {
+	if !errors.Is(err, RevisionNotRequestedError) {
 		t.Errorf("unexpected error when getting revision: %v", err)
 	}
 
@@ -1252,7 +1264,7 @@ func TestStatFileDirectoryProvider(t *testing.T) {
 	}
 
 	_, err = info.GetRevisionID()
-	if !errors.Is(err, ErrRevisionNotRequested) {
+	if !errors.Is(err, RevisionNotRequestedError) {
 		t.Errorf("unexpected error when getting revision: %v", err)
 	}
 
@@ -1317,7 +1329,7 @@ func TestStatFileS3Provider(t *testing.T) {
 	}
 
 	_, err = info.GetRevisionID()
-	if !errors.Is(err, ErrRevisionNotRequested) {
+	if !errors.Is(err, RevisionNotRequestedError) {
 		t.Errorf("unexpected error when getting revision: %v", err)
 	}
 

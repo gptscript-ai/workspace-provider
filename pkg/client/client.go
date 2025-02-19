@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -173,7 +174,7 @@ func (f *File) GetRevisionID() (string, error) {
 		return f.RevisionID, nil
 	}
 
-	return "", ErrRevisionNotRequested
+	return "", RevisionNotRequestedError
 }
 
 func (c *Client) OpenFile(ctx context.Context, id, fileName string, opts ...OpenOptions) (*File, error) {
@@ -194,6 +195,8 @@ type WriteOptions struct {
 	CreateRevision *bool
 	// If LatestRevisionID is set, then a conflict error will be returned if that revision is not the latest.
 	LatestRevisionID string
+	// IfNotExists will only write if the file does not exist. Mutually exclusive with LatestRevisionID.
+	IfNotExists bool
 }
 
 func (c *Client) WriteFile(ctx context.Context, id, fileName string, reader io.Reader, opts ...WriteOptions) error {
@@ -205,13 +208,25 @@ func (c *Client) WriteFile(ctx context.Context, id, fileName string, reader io.R
 		if o.LatestRevisionID != "" {
 			opt.LatestRevisionID = o.LatestRevisionID
 		}
+		if o.IfNotExists {
+			opt.IfNotExists = o.IfNotExists
+		}
 	}
+	if opt.IfNotExists {
+		opt.LatestRevisionID = "-1"
+	}
+
 	wc, err := c.getClient(id)
 	if err != nil {
 		return err
 	}
 
-	return wc.WriteFile(ctx, fileName, reader, opt)
+	err = wc.WriteFile(ctx, fileName, reader, opt)
+	if ce := (*ConflictError)(nil); err != nil && errors.As(err, &ce) && opt.IfNotExists {
+		err = &[]FileExistsError{FileExistsError(*ce)}[0]
+	}
+
+	return err
 }
 
 type StatOptions struct {

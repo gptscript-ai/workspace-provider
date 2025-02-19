@@ -50,9 +50,17 @@ Tools: Server
 Description: Read a file in a workspace, returned the base64 encoded content
 Parameter: workspace_id: The ID of the workspaces to read the file from
 Parameter: file_path: The name of the file to read
-Parameter: with_latest_revision_id: Whether to return the latest revision ID (optional)
 
-#!http://Server.daemon.gptscript.local/read-file/${WORKSPACE_ID}/${FILE_PATH}?withLatestRevision=${WITH_LATEST_REVISION_ID}
+#!http://Server.daemon.gptscript.local/read-file/${WORKSPACE_ID}/${FILE_PATH}
+
+---
+Name: Read File With Revision in Workspace
+Tools: Server
+Description: Read a file in a workspace, returned the base64 encoded content
+Parameter: workspace_id: The ID of the workspaces to read the file from
+Parameter: file_path: The name of the file to read
+
+#!http://Server.daemon.gptscript.local/read-file-with-revision/${WORKSPACE_ID}/${FILE_PATH}
 
 ---
 Name: Remove File in Workspace
