@@ -11,8 +11,9 @@ import (
 func (s *server) statFile(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	fileName := r.PathValue("fileName")
+	withLatestRevision := r.URL.Query().Get("withLatestRevision") == "true"
 
-	info, err := s.client.StatFile(r.Context(), id, fileName)
+	info, err := s.client.StatFile(r.Context(), id, fileName, client.StatOptions{WithLatestRevisionID: withLatestRevision})
 	if err != nil {
 		if fnf := (*client.NotFoundError)(nil); errors.As(err, &fnf) {
 			w.WriteHeader(http.StatusNotFound)
@@ -23,5 +24,12 @@ func (s *server) statFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = json.NewEncoder(w).Encode(info)
+	b, err := json.Marshal(info)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
+
+	_, _ = w.Write(b)
 }

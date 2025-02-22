@@ -160,7 +160,7 @@ func (s *s3Provider) DeleteFile(ctx context.Context, filePath string) error {
 	return nil
 }
 
-func (s *s3Provider) OpenFile(ctx context.Context, filePath string) (io.ReadCloser, error) {
+func (s *s3Provider) OpenFile(ctx context.Context, filePath string, opt OpenOptions) (*File, error) {
 	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(fmt.Sprintf("%s/%s", s.dir, filePath)),
@@ -173,7 +173,19 @@ func (s *s3Provider) OpenFile(ctx context.Context, filePath string) (io.ReadClos
 		return nil, err
 	}
 
-	return out.Body, nil
+	var revision string
+	if opt.WithLatestRevisionID {
+		rev, err := getRevisionInfo(ctx, s.revisionsProvider, filePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get revision info: %w", err)
+		}
+		revision = strconv.FormatInt(rev.CurrentID, 10)
+	}
+
+	return &File{
+		ReadCloser: out.Body,
+		RevisionID: revision,
+	}, nil
 }
 
 func (s *s3Provider) WriteFile(ctx context.Context, fileName string, reader io.Reader, opt WriteOptions) error {
@@ -185,14 +197,14 @@ func (s *s3Provider) WriteFile(ctx context.Context, fileName string, reader io.R
 			}
 		}
 
-		if opt.LatestRevision != "" {
-			requiredLatestRevision, err := strconv.ParseInt(opt.LatestRevision, 10, 64)
+		if opt.LatestRevisionID != "" {
+			requiredLatestRevision, err := strconv.ParseInt(opt.LatestRevisionID, 10, 64)
 			if err != nil {
 				return fmt.Errorf("failed to parse latest revision for write: %w", err)
 			}
 
 			if requiredLatestRevision != info.CurrentID {
-				return newConflictError(S3Provider+"://"+s.bucket, fileName, opt.LatestRevision, fmt.Sprintf("%d", info.CurrentID))
+				return newConflictError(S3Provider+"://"+s.bucket, fileName, opt.LatestRevisionID, fmt.Sprintf("%d", info.CurrentID))
 			}
 		}
 
@@ -240,7 +252,7 @@ func (s *s3Provider) WriteFile(ctx context.Context, fileName string, reader io.R
 	return err
 }
 
-func (s *s3Provider) StatFile(ctx context.Context, fileName string) (FileInfo, error) {
+func (s *s3Provider) StatFile(ctx context.Context, fileName string, opt StatOptions) (FileInfo, error) {
 	out, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(fmt.Sprintf("%s/%s", s.dir, fileName)),
@@ -274,12 +286,22 @@ func (s *s3Provider) StatFile(ctx context.Context, fileName string) (FileInfo, e
 		mime = strings.Split(mt.String(), ";")[0]
 	}
 
+	var revision string
+	if opt.WithLatestRevisionID {
+		rev, err := getRevisionInfo(ctx, s.revisionsProvider, fileName)
+		if err != nil {
+			return FileInfo{}, err
+		}
+		revision = strconv.FormatInt(rev.CurrentID, 10)
+	}
+
 	return FileInfo{
 		WorkspaceID: fmt.Sprintf("%s://%s/%s", S3Provider, s.bucket, s.dir),
 		Name:        strings.TrimPrefix(fileName, s.dir+"/"),
 		Size:        aws.ToInt64(out.ContentLength),
 		ModTime:     aws.ToTime(out.LastModified),
 		MimeType:    mime,
+		RevisionID:  revision,
 	}, nil
 }
 
@@ -335,7 +357,7 @@ func (s *s3Provider) ListRevisions(ctx context.Context, fileName string) ([]Revi
 	return listRevisions(ctx, s.revisionsProvider, fmt.Sprintf("%s://%s/%s", S3Provider, s.bucket, s.dir), fileName)
 }
 
-func (s *s3Provider) GetRevision(ctx context.Context, fileName, revisionID string) (io.ReadCloser, error) {
+func (s *s3Provider) GetRevision(ctx context.Context, fileName, revisionID string) (*File, error) {
 	return getRevision(ctx, s.revisionsProvider, fileName, revisionID)
 }
 

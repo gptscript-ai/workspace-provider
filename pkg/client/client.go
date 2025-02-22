@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -25,13 +26,13 @@ type workspaceFactory interface {
 
 type workspaceClient interface {
 	Ls(context.Context, string) ([]string, error)
-	OpenFile(context.Context, string) (io.ReadCloser, error)
+	OpenFile(context.Context, string, OpenOptions) (*File, error)
 	WriteFile(context.Context, string, io.Reader, WriteOptions) error
 	DeleteFile(context.Context, string) error
-	StatFile(context.Context, string) (FileInfo, error)
+	StatFile(context.Context, string, StatOptions) (FileInfo, error)
 	RemoveAllWithPrefix(context.Context, string) error
 	ListRevisions(context.Context, string) ([]RevisionInfo, error)
-	GetRevision(context.Context, string, string) (io.ReadCloser, error)
+	GetRevision(context.Context, string, string) (*File, error)
 	DeleteRevision(context.Context, string, string) error
 	RevisionClient() workspaceClient
 }
@@ -159,19 +160,43 @@ func (c *Client) DeleteFile(ctx context.Context, id, file string) error {
 	return wc.DeleteFile(ctx, file)
 }
 
-func (c *Client) OpenFile(ctx context.Context, id, fileName string) (io.ReadCloser, error) {
+type OpenOptions struct {
+	WithLatestRevisionID bool
+}
+
+type File struct {
+	io.ReadCloser
+	RevisionID string
+}
+
+func (f *File) GetRevisionID() (string, error) {
+	if f.RevisionID != "" {
+		return f.RevisionID, nil
+	}
+
+	return "", RevisionNotRequestedError
+}
+
+func (c *Client) OpenFile(ctx context.Context, id, fileName string, opts ...OpenOptions) (*File, error) {
+	var opt OpenOptions
+	for _, o := range opts {
+		opt.WithLatestRevisionID = opt.WithLatestRevisionID || o.WithLatestRevisionID
+	}
+
 	wc, err := c.getClient(id)
 	if err != nil {
 		return nil, err
 	}
 
-	return wc.OpenFile(ctx, fileName)
+	return wc.OpenFile(ctx, fileName, opt)
 }
 
 type WriteOptions struct {
 	CreateRevision *bool
-	// If LatestRevision is set, then a conflict error will be returned if that revision is not the latest.
-	LatestRevision string
+	// If LatestRevisionID is set, then a conflict error will be returned if that revision is not the latest.
+	LatestRevisionID string
+	// IfNotExists will only write if the file does not exist. Mutually exclusive with LatestRevisionID.
+	IfNotExists bool
 }
 
 func (c *Client) WriteFile(ctx context.Context, id, fileName string, reader io.Reader, opts ...WriteOptions) error {
@@ -180,25 +205,46 @@ func (c *Client) WriteFile(ctx context.Context, id, fileName string, reader io.R
 		if o.CreateRevision != nil {
 			opt.CreateRevision = o.CreateRevision
 		}
-		if o.LatestRevision != "" {
-			opt.LatestRevision = o.LatestRevision
+		if o.LatestRevisionID != "" {
+			opt.LatestRevisionID = o.LatestRevisionID
+		}
+		if o.IfNotExists {
+			opt.IfNotExists = o.IfNotExists
 		}
 	}
+	if opt.IfNotExists {
+		opt.LatestRevisionID = "-1"
+	}
+
 	wc, err := c.getClient(id)
 	if err != nil {
 		return err
 	}
 
-	return wc.WriteFile(ctx, fileName, reader, opt)
+	err = wc.WriteFile(ctx, fileName, reader, opt)
+	if ce := (*ConflictError)(nil); err != nil && errors.As(err, &ce) && opt.IfNotExists {
+		err = &[]FileExistsError{FileExistsError(*ce)}[0]
+	}
+
+	return err
 }
 
-func (c *Client) StatFile(ctx context.Context, id, fileName string) (FileInfo, error) {
+type StatOptions struct {
+	WithLatestRevisionID bool
+}
+
+func (c *Client) StatFile(ctx context.Context, id, fileName string, opts ...StatOptions) (FileInfo, error) {
+	var opt StatOptions
+	for _, o := range opts {
+		opt.WithLatestRevisionID = opt.WithLatestRevisionID || o.WithLatestRevisionID
+	}
+
 	wc, err := c.getClient(id)
 	if err != nil {
 		return FileInfo{}, err
 	}
 
-	return wc.StatFile(ctx, fileName)
+	return wc.StatFile(ctx, fileName, opt)
 }
 
 func (c *Client) RemoveAllWithPrefix(ctx context.Context, id, prefix string) error {
@@ -219,7 +265,7 @@ func (c *Client) ListRevisions(ctx context.Context, id, fileName string) ([]Revi
 	return wc.ListRevisions(ctx, fileName)
 }
 
-func (c *Client) GetRevision(ctx context.Context, id, fileName, revision string) (io.ReadCloser, error) {
+func (c *Client) GetRevision(ctx context.Context, id, fileName, revision string) (*File, error) {
 	wc, err := c.getClient(id)
 	if err != nil {
 		return nil, err
@@ -285,7 +331,7 @@ func cp(ctx context.Context, source, dest workspaceClient) error {
 }
 
 func cpFile(ctx context.Context, entry string, source, dest workspaceClient) error {
-	sourceFile, err := source.OpenFile(ctx, entry)
+	sourceFile, err := source.OpenFile(ctx, entry, OpenOptions{})
 	if err != nil {
 		return err
 	}

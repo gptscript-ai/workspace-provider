@@ -1,8 +1,11 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 )
+
+var RevisionNotRequestedError = errors.New("revision not requested")
 
 type NotFoundError struct {
 	id   string
@@ -30,4 +33,10 @@ func newConflictError(id, name, latestRevision, currentRevision string) *Conflic
 
 func (e *ConflictError) Error() string {
 	return fmt.Sprintf("conflict: %s/%s (latest revision: %s, current revision: %s)", e.id, e.name, e.latestRevision, e.currentRevision)
+}
+
+type FileExistsError ConflictError
+
+func (e *FileExistsError) Error() string {
+	return fmt.Sprintf("file already exists: %s/%s", e.id, e.name)
 }

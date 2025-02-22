@@ -24,6 +24,7 @@ func Run(ctx context.Context, client *client.Client, port int) error {
 	mux.HandleFunc("/rm/{id}", s.rm)
 	mux.HandleFunc("/ls/{id}/{prefix...}", s.ls)
 	mux.HandleFunc("/read-file/{id}/{fileName}", s.readFile)
+	mux.HandleFunc("/read-file-with-revision/{id}/{fileName}", s.readFileWithRevision)
 	mux.HandleFunc("/write-file/{id}/{fileName}", s.writeFile)
 	mux.HandleFunc("/rm-file/{id}/{fileName}", s.deleteFile)
 	mux.HandleFunc("/stat-file/{id}/{fileName}", s.statFile)

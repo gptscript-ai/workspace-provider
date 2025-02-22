@@ -68,7 +68,7 @@ func TestWriteAndDeleteFileInS3(t *testing.T) {
 	defer obj.Body.Close()
 
 	// Stat the file and compare with the original
-	providerStat, err := s3Prv.StatFile(context.Background(), "test.txt")
+	providerStat, err := s3Prv.StatFile(context.Background(), "test.txt", StatOptions{})
 	if err != nil {
 		t.Errorf("unexpected error when statting file: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestFileReadFromS3(t *testing.T) {
 		t.Fatalf("error getting file to write: %v", err)
 	}
 
-	readFile, err := s3Prv.OpenFile(context.Background(), "test.txt")
+	readFile, err := s3Prv.OpenFile(context.Background(), "test.txt", OpenOptions{})
 	if err != nil {
 		t.Errorf("unexpected error when reading file: %v", err)
 	}
@@ -377,7 +377,7 @@ func TestOpeningFileDNENoErrorS3(t *testing.T) {
 	}
 
 	var notFoundError *NotFoundError
-	if file, err := s3Prv.OpenFile(context.Background(), "test.txt"); err == nil {
+	if file, err := s3Prv.OpenFile(context.Background(), "test.txt", OpenOptions{}); err == nil {
 		_ = file.Close()
 		t.Errorf("expected error when deleting file that doesn't exist")
 	} else if !errors.As(err, &notFoundError) {
@@ -456,6 +456,14 @@ func TestWriteEnsureRevisionS3(t *testing.T) {
 
 		if string(content) != "test" {
 			t.Errorf("unexpected content: %s", string(content))
+		}
+
+		revisionID, err := rev.GetRevisionID()
+		if err != nil {
+			t.Errorf("error getting revision: %v", err)
+		}
+		if revisionID != "1" {
+			t.Errorf("unexpected revision ID: %s", revisionID)
 		}
 	}
 
@@ -544,7 +552,12 @@ func TestWriteEnsureConflictS3(t *testing.T) {
 
 	ce := (*ConflictError)(nil)
 	// Trying to update the file with a non-zero revision ID should fail with a conflict error.
-	if err = s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{LatestRevision: "1"}); err == nil || !errors.As(err, &ce) {
+	if err = s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{LatestRevisionID: "1"}); err == nil || !errors.As(err, &ce) {
+		t.Errorf("expected error when first updating file non-zero revision ID: %v", err)
+	}
+
+	// Also, using -1 for the revision ID should also fail because that is the same as "only write if the file doesn't exist"
+	if err = s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{LatestRevisionID: "-1"}); err == nil || !errors.As(err, &ce) {
 		t.Errorf("expected error when first updating file non-zero revision ID: %v", err)
 	}
 
@@ -563,7 +576,7 @@ func TestWriteEnsureConflictS3(t *testing.T) {
 	}
 
 	// Update the file again
-	if err = s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test3"), WriteOptions{LatestRevision: revisions[0].RevisionID}); err != nil {
+	if err = s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test3"), WriteOptions{LatestRevisionID: revisions[0].RevisionID}); err != nil {
 		t.Errorf("error getting file to write: %v", err)
 	}
 
@@ -577,12 +590,13 @@ func TestWriteEnsureConflictS3(t *testing.T) {
 	}
 
 	// Trying to update the file again with the same revision ID should fail with a conflict error.
-	if err = s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test4"), WriteOptions{LatestRevision: revisions[0].RevisionID}); err == nil || !errors.As(err, &ce) {
+	if err = s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test4"), WriteOptions{LatestRevisionID: revisions[0].RevisionID}); err == nil || !errors.As(err, &ce) {
 		t.Errorf("expected error when updating file with same revision ID: %v", err)
 	}
 
+	latestRevisionID := revisions[1].RevisionID
 	// Delete the most recent revision
-	if err = s3Prv.DeleteRevision(context.Background(), "test.txt", revisions[1].RevisionID); err != nil {
+	if err = s3Prv.DeleteRevision(context.Background(), "test.txt", latestRevisionID); err != nil {
 		t.Errorf("error deleting revision: %v", err)
 	}
 
@@ -595,9 +609,96 @@ func TestWriteEnsureConflictS3(t *testing.T) {
 		t.Errorf("unexpected number of revisions: %d", len(revisions))
 	}
 
+	// We cannot update the file with this revision ID
+	ce = (*ConflictError)(nil)
+	if err = s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test5"), WriteOptions{LatestRevisionID: revisions[0].RevisionID}); err == nil || !errors.As(err, &ce) {
+		t.Errorf("expected error when updating file with zero revision ID: %v", err)
+	}
+
 	// Ensure that we can still create a new revision
-	if err = s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test5"), WriteOptions{LatestRevision: revisions[0].RevisionID}); err != nil {
+	if err = s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test5"), WriteOptions{LatestRevisionID: latestRevisionID}); err != nil {
 		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// Delete the file
+	if err = s3Prv.DeleteFile(context.Background(), "test.txt"); err != nil {
+		t.Errorf("error removing file: %v", err)
+	}
+}
+
+func TestReadFileWithRevisionS3(t *testing.T) {
+	if skipS3Tests {
+		t.Skip("Skipping S3 tests")
+	}
+
+	// Copy a file into the workspace
+	if err := s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	// Read the file
+	f, err := s3Prv.OpenFile(context.Background(), "test.txt", OpenOptions{WithLatestRevisionID: true})
+	if err != nil {
+		t.Errorf("error reading file: %v", err)
+	}
+
+	// Read the file contents
+	data, err := io.ReadAll(f)
+	if err != nil {
+		t.Errorf("error reading file contents: %v", err)
+	}
+
+	// Close the file
+	if err := f.Close(); err != nil {
+		t.Errorf("error closing file: %v", err)
+	}
+
+	if string(data) != "test" {
+		t.Errorf("unexpected file contents: %s", string(data))
+	}
+
+	// Ensure that the revision is set and correct.
+	revisionID, err := f.GetRevisionID()
+	if err != nil {
+		t.Errorf("error getting revision: %v", err)
+	}
+	if revisionID != "0" {
+		t.Errorf("unexpected revision ID: %s", revisionID)
+	}
+
+	// Update the file
+	if err = s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{LatestRevisionID: "0"}); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// Read the file
+	f, err = s3Prv.OpenFile(context.Background(), "test.txt", OpenOptions{WithLatestRevisionID: true})
+	if err != nil {
+		t.Errorf("error reading file: %v", err)
+	}
+
+	// Read the file contents
+	data, err = io.ReadAll(f)
+	if err != nil {
+		t.Errorf("error reading file contents: %v", err)
+	}
+
+	// Close the file
+	if err := f.Close(); err != nil {
+		t.Errorf("error closing file: %v", err)
+	}
+
+	if string(data) != "test2" {
+		t.Errorf("unexpected file contents: %s", string(data))
+	}
+
+	// Get the revision ID
+	revisionID, err = f.GetRevisionID()
+	if err != nil {
+		t.Errorf("error getting revision: %v", err)
+	}
+	if revisionID != "1" {
+		t.Errorf("unexpected revision ID: %s", revisionID)
 	}
 
 	// Delete the file
@@ -629,8 +730,6 @@ func TestDeleteRevisionS3(t *testing.T) {
 	if err = s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{}); err != nil {
 		t.Errorf("error getting file to write: %v", err)
 	}
-
-	dir, base := filepath.Split(strings.TrimPrefix(directoryTestingID, DirectoryProvider+"://"))
 
 	// Now there should be one revision
 	revisions, err = s3Prv.ListRevisions(context.Background(), "test.txt")
@@ -680,12 +779,12 @@ func TestDeleteRevisionS3(t *testing.T) {
 	}
 
 	// Ensure the file no longer exists
-	if _, err = os.Stat(filepath.Join(dir, base, "test.txt")); !errors.Is(err, os.ErrNotExist) {
+	if _, err := s3Prv.client.GetObject(context.Background(), &s3.GetObjectInput{Bucket: &s3Prv.bucket, Key: aws.String(fmt.Sprintf("%s/%s", s3Prv.dir, "test.txt"))}); err == nil {
 		t.Errorf("file should not exist after deleting: %v", err)
 	}
 
 	// Ensure the revision file no longer exists
-	if _, err = os.Stat(filepath.Join(dir, revisionsDir, base, "test.txt.2")); !errors.Is(err, os.ErrNotExist) {
+	if _, err := s3Prv.client.GetObject(context.Background(), &s3.GetObjectInput{Bucket: &s3Prv.bucket, Key: aws.String(fmt.Sprintf("%s/%s", s3Prv.dir, "test.txt.2"))}); err == nil {
 		t.Errorf("file should not exist after deleting: %v", err)
 	}
 }
@@ -698,5 +797,50 @@ func TestNoCreateRevisionsClientS3(t *testing.T) {
 	_, err := s3Factory.New(fmt.Sprintf("%s://%s/%s", S3Provider, os.Getenv("WORKSPACE_PROVIDER_S3_BUCKET"), revisionsDir))
 	if err == nil {
 		t.Errorf("expected error when creating client for revisions dir")
+	}
+}
+
+func TestStatFileS3(t *testing.T) {
+	if skipS3Tests {
+		t.Skip("Skipping S3 tests")
+	}
+
+	// Copy a file into the workspace
+	if err := s3Prv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	// Stat the file
+	providerStat, err := s3Prv.StatFile(context.Background(), "test.txt", StatOptions{})
+	if err != nil {
+		t.Errorf("unexpected error when statting file: %v", err)
+	}
+
+	if providerStat.WorkspaceID != s3TestingID {
+		t.Errorf("unexpected workspace id: %s", providerStat.WorkspaceID)
+	}
+	if providerStat.Size != 4 {
+		t.Errorf("unexpected file size: %d", providerStat.Size)
+	}
+	if providerStat.Name != "test.txt" {
+		t.Errorf("unexpected file name: %s", providerStat.Name)
+	}
+	if providerStat.ModTime.IsZero() {
+		t.Errorf("unexpected file mod time: %s", providerStat.ModTime)
+	}
+	if _, err := providerStat.GetRevisionID(); !errors.Is(err, RevisionNotRequestedError) {
+		t.Errorf("unexpected error when revision not requested: %v", err)
+	}
+
+	// Stat the file with revision
+	providerStat, err = s3Prv.StatFile(context.Background(), "test.txt", StatOptions{WithLatestRevisionID: true})
+	if err != nil {
+		t.Errorf("unexpected error when statting file: %v", err)
+	}
+
+	if rev, err := providerStat.GetRevisionID(); err != nil {
+		t.Errorf("unexpected error when revision not requested: %v", err)
+	} else if rev != "0" {
+		t.Errorf("unexpected revision id when revision requested: %s", rev)
 	}
 }

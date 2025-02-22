@@ -40,9 +40,9 @@ Parameter: workspace_id: The ID of the workspaces to write the file in
 Parameter: file_path: The name of the file to write
 Parameter: body: The base64 encoded contents of the file to write
 Parameter: create_revision: Whether to create a revision of the change to the file
-Parameter: latest_revision: Only write the file if the given revision is the latest (optional)
+Parameter: latest_revision_id: Only write the file if the given revision is the latest (optional)
 
-#!http://Server.daemon.gptscript.local/write-file/${WORKSPACE_ID}/${FILE_PATH}?createRevision=${CREATE_REVISION}&latestRevision=${LATEST_REVISION}
+#!http://Server.daemon.gptscript.local/write-file/${WORKSPACE_ID}/${FILE_PATH}?createRevision=${CREATE_REVISION}&latestRevision=${LATEST_REVISION_ID}
 
 ---
 Name: Read File in Workspace
@@ -52,6 +52,15 @@ Parameter: workspace_id: The ID of the workspaces to read the file from
 Parameter: file_path: The name of the file to read
 
 #!http://Server.daemon.gptscript.local/read-file/${WORKSPACE_ID}/${FILE_PATH}
+
+---
+Name: Read File With Revision in Workspace
+Tools: Server
+Description: Read a file in a workspace, returned the base64 encoded content
+Parameter: workspace_id: The ID of the workspaces to read the file from
+Parameter: file_path: The name of the file to read
+
+#!http://Server.daemon.gptscript.local/read-file-with-revision/${WORKSPACE_ID}/${FILE_PATH}
 
 ---
 Name: Remove File in Workspace
@@ -68,8 +77,9 @@ Tools: Server
 Description: Get information about a file in a workspace
 Parameter: workspace_id: The ID of the workspaces to stat the file from
 Parameter: file_path: The name of the file to stat
+Parameter: with_latest_revision_id: Whether to return the latest revision ID (optional)
 
-#!http://Server.daemon.gptscript.local/stat-file/${WORKSPACE_ID}/${FILE_PATH}
+#!http://Server.daemon.gptscript.local/stat-file/${WORKSPACE_ID}/${FILE_PATH}?withLatestRevision=${WITH_LATEST_REVISION_ID}
 
 ---
 Name: List Revisions for File in Workspace
