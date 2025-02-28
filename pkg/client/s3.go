@@ -62,8 +62,8 @@ func (s *s3Provider) New(id string) (workspaceClient, error) {
 	}, nil
 }
 
-func (s *s3Provider) Create() (string, error) {
-	return S3Provider + "://" + filepath.Join(s.bucket, uuid.NewString()), nil
+func (s *s3Provider) Create() string {
+	return S3Provider + "://" + filepath.Join(s.bucket, uuid.NewString())
 }
 
 func (s *s3Provider) Rm(ctx context.Context, id string) error {

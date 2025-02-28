@@ -77,9 +77,9 @@ func (d *directoryProvider) New(id string) (workspaceClient, error) {
 	}, nil
 }
 
-func (d *directoryProvider) Create() (string, error) {
+func (d *directoryProvider) Create() string {
 	dir := uuid.NewString()
-	return DirectoryProvider + "://" + filepath.Join(d.dataHome, dir), os.MkdirAll(filepath.Join(d.dataHome, dir), 0o755)
+	return DirectoryProvider + "://" + filepath.Join(d.dataHome, dir)
 }
 
 func (d *directoryProvider) Rm(ctx context.Context, id string) error {

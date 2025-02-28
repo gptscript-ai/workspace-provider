@@ -41,12 +41,12 @@ func TestCreateAndRmDirectoryProvider(t *testing.T) {
 		t.Errorf("unexpected id: %s", id)
 	}
 
-	// The directory should exist
-	if _, err = os.Stat(strings.TrimPrefix(id, DirectoryProvider+"://")); err != nil {
+	// The directory should not exist yet
+	if _, err := os.Stat(strings.TrimPrefix(id, DirectoryProvider+"://")); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("unexpected error when checking if directory exists: %v", err)
 	}
 
-	if err = c.Rm(context.Background(), id); err != nil {
+	if err := c.Rm(context.Background(), id); err != nil {
 		t.Errorf("unexpected error when removing workspace: %v", err)
 	}
 
