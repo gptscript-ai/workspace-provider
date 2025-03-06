@@ -265,6 +265,11 @@ func (a *azureProvider) StatFile(ctx context.Context, fileName string, opt StatO
 }
 
 func (a *azureProvider) RemoveAllWithPrefix(ctx context.Context, prefix string) error {
+	// Protect against path traversal
+	if strings.Contains(prefix, "..") {
+		return fmt.Errorf("invalid prefix: must not contain '..'")
+	}
+
 	if prefix != "" {
 		prefix = fmt.Sprintf("%s/%s/", a.dir, strings.TrimSuffix(prefix, "/"))
 	} else {

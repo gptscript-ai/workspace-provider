@@ -368,6 +368,31 @@ func TestRemoveAllWithPrefixAzure(t *testing.T) {
 	}
 }
 
+func TestRemoveAllWithPrefixPathTraversalAzure(t *testing.T) {
+	if skipAzureTests {
+		t.Skip("Skipping Azure tests")
+	}
+
+	// Create a file in the workspace
+	if err := azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+	defer azurePrv.DeleteFile(context.Background(), "test.txt")
+
+	// Attempt path traversal
+	maliciousPrefix := "../" + azurePrv.dir
+	err := azurePrv.RemoveAllWithPrefix(context.Background(), maliciousPrefix)
+	if err == nil {
+		t.Error("expected error when attempting path traversal in RemoveAllWithPrefix")
+	}
+
+	// Verify the file still exists (wasn't deleted by the path traversal attempt)
+	_, err = azurePrv.StatFile(context.Background(), "test.txt", StatOptions{})
+	if err != nil {
+		t.Errorf("file should still exist after failed path traversal attempt: %v", err)
+	}
+}
+
 func TestOpeningFileDNENoErrorAzure(t *testing.T) {
 	if skipAzureTests {
 		t.Skip("Skipping Azure tests")
