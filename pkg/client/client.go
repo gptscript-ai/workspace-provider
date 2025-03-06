@@ -16,6 +16,7 @@ import (
 const (
 	DirectoryProvider = "directory"
 	S3Provider        = "s3"
+	AzureProvider     = "azure"
 )
 
 type workspaceFactory interface {
@@ -38,9 +39,11 @@ type workspaceClient interface {
 }
 
 type Options struct {
-	DirectoryDataHome string
-	S3BucketName      string
-	S3BaseEndpoint    string
+	DirectoryDataHome     string
+	S3BucketName          string
+	S3BaseEndpoint        string
+	AzureContainerName    string
+	AzureConnectionString string
 }
 
 func complete(opts ...Options) Options {
@@ -56,6 +59,12 @@ func complete(opts ...Options) Options {
 		if o.S3BaseEndpoint != "" {
 			opt.S3BaseEndpoint = o.S3BaseEndpoint
 		}
+		if o.AzureContainerName != "" {
+			opt.AzureContainerName = o.AzureContainerName
+		}
+		if o.AzureConnectionString != "" {
+			opt.AzureConnectionString = o.AzureConnectionString
+		}
 	}
 
 	if opt.DirectoryDataHome == "" {
@@ -68,19 +77,27 @@ func complete(opts ...Options) Options {
 func New(ctx context.Context, opts ...Options) (*Client, error) {
 	opt := complete(opts...)
 
-	var s3 workspaceFactory
+	factories := map[string]workspaceFactory{
+		DirectoryProvider: newDirectory(opt.DirectoryDataHome),
+	}
+
 	if opt.S3BucketName != "" {
-		var err error
-		s3, err = newS3(ctx, opt.S3BucketName, opt.S3BaseEndpoint)
+		factory, err := newS3(ctx, opt.S3BucketName, opt.S3BaseEndpoint)
 		if err != nil {
 			return nil, err
 		}
+		factories[S3Provider] = factory
 	}
+	if opt.AzureConnectionString != "" {
+		factory, err := newAzure(opt.AzureContainerName, opt.AzureConnectionString)
+		if err != nil {
+			return nil, err
+		}
+		factories[AzureProvider] = factory
+	}
+
 	return &Client{
-		factories: map[string]workspaceFactory{
-			DirectoryProvider: newDirectory(opt.DirectoryDataHome),
-			S3Provider:        s3,
-		},
+		factories: factories,
 	}, nil
 }
 
