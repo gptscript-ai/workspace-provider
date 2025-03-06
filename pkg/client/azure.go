@@ -41,6 +41,49 @@ type azureProvider struct {
 	revisionsProvider  *azureProvider
 }
 
+func (a *azureProvider) validatePath(path string) error {
+	if path == "" {
+		return nil // empty path is valid in some contexts (e.g., Ls root)
+	}
+
+	// Check for path traversal attempts
+	if strings.Contains(path, "..") {
+		return fmt.Errorf("invalid path: must not contain '..'")
+	}
+
+	// Check for absolute paths
+	if strings.HasPrefix(path, "/") {
+		return fmt.Errorf("invalid path: must be relative")
+	}
+
+	// Azure Blob Storage naming rules:
+	// - Cannot start or end with '/'
+	// - Cannot contain consecutive forward slashes
+	if strings.HasSuffix(path, "/") {
+		return fmt.Errorf("invalid path: cannot end with '/'")
+	}
+	if strings.Contains(path, "//") {
+		return fmt.Errorf("invalid path: cannot contain consecutive '/'")
+	}
+
+	// Additional Azure Blob Storage restrictions
+	if len(path) > 1024 {
+		return fmt.Errorf("invalid path: length cannot exceed 1024 characters")
+	}
+
+	// Check for invalid characters in path segments
+	for _, segment := range strings.Split(path, "/") {
+		if segment == "" {
+			continue
+		}
+		if strings.ContainsAny(segment, `\:*?"<>|`) {
+			return fmt.Errorf("invalid path: contains invalid characters")
+		}
+	}
+
+	return nil
+}
+
 func (a *azureProvider) New(id string) (workspaceClient, error) {
 	container, dir, _ := strings.Cut(strings.TrimPrefix(id, AzureProvider+"://"), "/")
 	if dir == revisionsDir {
@@ -84,6 +127,9 @@ func (a *azureProvider) Rm(ctx context.Context, id string) error {
 }
 
 func (a *azureProvider) Ls(ctx context.Context, prefix string) ([]string, error) {
+	if err := a.validatePath(prefix); err != nil {
+		return nil, err
+	}
 	if prefix != "" {
 		prefix = fmt.Sprintf("%s/%s/", a.dir, strings.TrimSuffix(prefix, "/"))
 	} else {
@@ -111,6 +157,9 @@ func (a *azureProvider) Ls(ctx context.Context, prefix string) ([]string, error)
 }
 
 func (a *azureProvider) DeleteFile(ctx context.Context, filePath string) error {
+	if err := a.validatePath(filePath); err != nil {
+		return err
+	}
 	blobClient := a.client.ServiceClient().NewContainerClient(a.containerName).NewBlockBlobClient(fmt.Sprintf("%s/%s", a.dir, filePath))
 	_, err := blobClient.Delete(ctx, nil)
 	if err != nil {
@@ -142,6 +191,9 @@ func (a *azureProvider) DeleteFile(ctx context.Context, filePath string) error {
 }
 
 func (a *azureProvider) OpenFile(ctx context.Context, filePath string, opt OpenOptions) (*File, error) {
+	if err := a.validatePath(filePath); err != nil {
+		return nil, err
+	}
 	blobClient := a.client.ServiceClient().NewContainerClient(a.containerName).NewBlockBlobClient(fmt.Sprintf("%s/%s", a.dir, filePath))
 
 	resp, err := blobClient.DownloadStream(ctx, nil)
@@ -169,6 +221,9 @@ func (a *azureProvider) OpenFile(ctx context.Context, filePath string, opt OpenO
 }
 
 func (a *azureProvider) WriteFile(ctx context.Context, fileName string, reader io.Reader, opt WriteOptions) error {
+	if err := a.validatePath(fileName); err != nil {
+		return err
+	}
 	if a.revisionsProvider != nil && (opt.CreateRevision == nil || *opt.CreateRevision) {
 		info, err := getRevisionInfo(ctx, a.revisionsProvider, fileName)
 		if err != nil {
@@ -211,6 +266,9 @@ func (a *azureProvider) WriteFile(ctx context.Context, fileName string, reader i
 }
 
 func (a *azureProvider) StatFile(ctx context.Context, fileName string, opt StatOptions) (FileInfo, error) {
+	if err := a.validatePath(fileName); err != nil {
+		return FileInfo{}, err
+	}
 	blobClient := a.client.ServiceClient().NewContainerClient(a.containerName).NewBlockBlobClient(fmt.Sprintf("%s/%s", a.dir, fileName))
 
 	props, err := blobClient.GetProperties(ctx, nil)
@@ -265,11 +323,9 @@ func (a *azureProvider) StatFile(ctx context.Context, fileName string, opt StatO
 }
 
 func (a *azureProvider) RemoveAllWithPrefix(ctx context.Context, prefix string) error {
-	// Protect against path traversal
-	if strings.Contains(prefix, "..") {
-		return fmt.Errorf("invalid prefix: must not contain '..'")
+	if err := a.validatePath(prefix); err != nil {
+		return err
 	}
-
 	if prefix != "" {
 		prefix = fmt.Sprintf("%s/%s/", a.dir, strings.TrimSuffix(prefix, "/"))
 	} else {
@@ -299,14 +355,23 @@ func (a *azureProvider) RemoveAllWithPrefix(ctx context.Context, prefix string) 
 }
 
 func (a *azureProvider) ListRevisions(ctx context.Context, fileName string) ([]RevisionInfo, error) {
+	if err := a.validatePath(fileName); err != nil {
+		return nil, err
+	}
 	return listRevisions(ctx, a.revisionsProvider, fmt.Sprintf("%s://%s/%s", AzureProvider, a.containerName, a.dir), fileName)
 }
 
 func (a *azureProvider) GetRevision(ctx context.Context, fileName, revisionID string) (*File, error) {
+	if err := a.validatePath(fileName); err != nil {
+		return nil, err
+	}
 	return getRevision(ctx, a.revisionsProvider, fileName, revisionID)
 }
 
 func (a *azureProvider) DeleteRevision(ctx context.Context, fileName, revisionID string) error {
+	if err := a.validatePath(fileName); err != nil {
+		return err
+	}
 	return deleteRevision(ctx, a.revisionsProvider, fileName, revisionID)
 }
 

@@ -368,31 +368,6 @@ func TestRemoveAllWithPrefixAzure(t *testing.T) {
 	}
 }
 
-func TestRemoveAllWithPrefixPathTraversalAzure(t *testing.T) {
-	if skipAzureTests {
-		t.Skip("Skipping Azure tests")
-	}
-
-	// Create a file in the workspace
-	if err := azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
-		t.Fatalf("error getting file to write: %v", err)
-	}
-	defer azurePrv.DeleteFile(context.Background(), "test.txt")
-
-	// Attempt path traversal
-	maliciousPrefix := "../" + azurePrv.dir
-	err := azurePrv.RemoveAllWithPrefix(context.Background(), maliciousPrefix)
-	if err == nil {
-		t.Error("expected error when attempting path traversal in RemoveAllWithPrefix")
-	}
-
-	// Verify the file still exists (wasn't deleted by the path traversal attempt)
-	_, err = azurePrv.StatFile(context.Background(), "test.txt", StatOptions{})
-	if err != nil {
-		t.Errorf("file should still exist after failed path traversal attempt: %v", err)
-	}
-}
-
 func TestOpeningFileDNENoErrorAzure(t *testing.T) {
 	if skipAzureTests {
 		t.Skip("Skipping Azure tests")
@@ -530,5 +505,113 @@ func TestReadFileWithRevisionAzure(t *testing.T) {
 	// Delete the file
 	if err = azurePrv.DeleteFile(context.Background(), "test.txt"); err != nil {
 		t.Errorf("error removing file: %v", err)
+	}
+}
+
+func TestPathValidationAzure(t *testing.T) {
+	if skipAzureTests {
+		t.Skip("Skipping Azure tests")
+	}
+
+	tests := []struct {
+		name     string
+		path     string
+		wantErr  bool
+		errMsg   string
+		testFunc func(string) error
+	}{
+		// Path traversal tests
+		{"traversal parent", "../test.txt", true, "must not contain '..'", nil},
+		{"traversal nested", "foo/../../test.txt", true, "must not contain '..'", nil},
+		{"traversal with slash", "../test.txt/", true, "must not contain '..'", nil},
+
+		// Absolute path tests
+		{"absolute path", "/test.txt", true, "must be relative", nil},
+		{"absolute nested", "/foo/test.txt", true, "must be relative", nil},
+
+		// Azure naming rule tests
+		{"trailing slash", "test/", true, "cannot end with '/'", nil},
+		{"double slash", "foo//bar.txt", true, "cannot contain consecutive '/'", nil},
+		{"invalid chars", "test*.txt", true, "contains invalid characters", nil},
+		{"invalid chars nested", "foo/test*.txt", true, "contains invalid characters", nil},
+		{"long path", strings.Repeat("a/", 1000) + "a.txt", true, "length cannot exceed 1024", nil},
+
+		// Valid paths
+		{"simple file", "test.txt", false, "", nil},
+		{"nested file", "foo/bar/test.txt", false, "", nil},
+		{"with numbers", "test123.txt", false, "", nil},
+		{"with dash", "test-file.txt", false, "", nil},
+		{"with underscore", "test_file.txt", false, "", nil},
+	}
+
+	// Create a test file to verify existence checks
+	if err := azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
+		t.Fatalf("error creating test file: %v", err)
+	}
+	defer azurePrv.DeleteFile(context.Background(), "test.txt")
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("WriteFile/%s", tt.name), func(t *testing.T) {
+			err := azurePrv.WriteFile(context.Background(), tt.path, strings.NewReader("test"), WriteOptions{})
+			assertPathError(t, err, tt.wantErr, tt.errMsg)
+		})
+
+		t.Run(fmt.Sprintf("OpenFile/%s", tt.name), func(t *testing.T) {
+			_, err := azurePrv.OpenFile(context.Background(), tt.path, OpenOptions{})
+			assertPathError(t, err, tt.wantErr, tt.errMsg)
+		})
+
+		t.Run(fmt.Sprintf("StatFile/%s", tt.name), func(t *testing.T) {
+			_, err := azurePrv.StatFile(context.Background(), tt.path, StatOptions{})
+			assertPathError(t, err, tt.wantErr, tt.errMsg)
+		})
+
+		t.Run(fmt.Sprintf("DeleteFile/%s", tt.name), func(t *testing.T) {
+			err := azurePrv.DeleteFile(context.Background(), tt.path)
+			assertPathError(t, err, tt.wantErr, tt.errMsg)
+		})
+
+		t.Run(fmt.Sprintf("Ls/%s", tt.name), func(t *testing.T) {
+			_, err := azurePrv.Ls(context.Background(), tt.path)
+			assertPathError(t, err, tt.wantErr, tt.errMsg)
+		})
+
+		t.Run(fmt.Sprintf("RemoveAllWithPrefix/%s", tt.name), func(t *testing.T) {
+			err := azurePrv.RemoveAllWithPrefix(context.Background(), tt.path)
+			assertPathError(t, err, tt.wantErr, tt.errMsg)
+		})
+
+		t.Run(fmt.Sprintf("ListRevisions/%s", tt.name), func(t *testing.T) {
+			_, err := azurePrv.ListRevisions(context.Background(), tt.path)
+			assertPathError(t, err, tt.wantErr, tt.errMsg)
+		})
+
+		t.Run(fmt.Sprintf("GetRevision/%s", tt.name), func(t *testing.T) {
+			if tt.wantErr {
+				_, err := azurePrv.GetRevision(context.Background(), tt.path, "1")
+				assertPathError(t, err, tt.wantErr, tt.errMsg)
+			}
+		})
+
+		t.Run(fmt.Sprintf("DeleteRevision/%s", tt.name), func(t *testing.T) {
+			err := azurePrv.DeleteRevision(context.Background(), tt.path, "1")
+			assertPathError(t, err, tt.wantErr, tt.errMsg)
+		})
+	}
+}
+
+// Helper function to assert path validation errors
+func assertPathError(t *testing.T, err error, wantErr bool, errMsg string) {
+	t.Helper()
+	if wantErr {
+		if err == nil {
+			t.Error("expected error but got none")
+			return
+		}
+		if !strings.Contains(err.Error(), errMsg) {
+			t.Errorf("expected error containing %q, got %v", errMsg, err)
+		}
+	} else if err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
