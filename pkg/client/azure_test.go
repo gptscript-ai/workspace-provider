@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -407,6 +408,123 @@ func TestWriteEnsureRevisionAzure(t *testing.T) {
 		t.Errorf("error getting file to write: %v", err)
 	}
 
+	// Ensure the revision file exists
+	blobClient := azurePrv.client.ServiceClient().NewContainerClient(azurePrv.containerName).NewBlockBlobClient(fmt.Sprintf("revisions/%s/%s.1", azurePrv.dir, "test.txt"))
+	props, err := blobClient.GetProperties(context.Background(), nil)
+	if err != nil {
+		t.Errorf("error when checking if revision exists: %v", err)
+	}
+
+	// Now there should be one revision
+	revisions, err = azurePrv.ListRevisions(context.Background(), "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+	if len(revisions) != 1 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	} else {
+		if revisions[0].WorkspaceID != azureTestingID {
+			t.Errorf("unexpected workspace id: %s", revisions[0].WorkspaceID)
+		}
+		if revisions[0].Size != *props.ContentLength {
+			t.Errorf("unexpected file size: %d", revisions[0].Size)
+		}
+		if revisions[0].Name != "test.txt" {
+			t.Errorf("unexpected file name: %s", revisions[0].Name)
+		}
+		if revisions[0].ModTime.Compare(*props.LastModified) != 0 {
+			t.Errorf("unexpected file mod time: %s", revisions[0].ModTime)
+		}
+		if revisions[0].RevisionID != "1" {
+			t.Errorf("unexpected revision id: %s", revisions[0].RevisionID)
+		}
+
+		// Get the revision and ensure that it has the correct content
+		rev, err := azurePrv.GetRevision(context.Background(), "test.txt", revisions[0].RevisionID)
+		if err != nil {
+			t.Errorf("unexpected error when getting revision: %v", err)
+		} else {
+			defer rev.Close()
+		}
+
+		content, err := io.ReadAll(rev)
+		if err != nil {
+			t.Errorf("unexpected error when reading revision: %v", err)
+		}
+
+		if string(content) != "test" {
+			t.Errorf("unexpected content: %s", string(content))
+		}
+
+		revisionID, err := rev.GetRevisionID()
+		if err != nil {
+			t.Errorf("error getting revision: %v", err)
+		}
+		if revisionID != "1" {
+			t.Errorf("unexpected revision ID: %s", revisionID)
+		}
+	}
+
+	// Delete the file
+	if err = azurePrv.DeleteFile(context.Background(), "test.txt"); err != nil {
+		t.Errorf("unexpected error when deleting file: %v", err)
+	}
+
+	// Ensure the file no longer exists
+	if _, err = azurePrv.client.ServiceClient().NewContainerClient(azurePrv.containerName).NewBlockBlobClient(fmt.Sprintf("%s/%s", azurePrv.dir, "test.txt")).GetProperties(context.Background(), nil); err == nil {
+		t.Errorf("file should not exist after deleting")
+	}
+
+	// Ensure the revision file no longer exists
+	if _, err = azurePrv.client.ServiceClient().NewContainerClient(azurePrv.containerName).NewBlockBlobClient(fmt.Sprintf("revisions/%s/%s.1", azurePrv.dir, "test.txt")).GetProperties(context.Background(), nil); err == nil {
+		t.Errorf("revision should not exist after deleting")
+	}
+
+	// Ensure the API returns no revisions for the file
+	revisions, err = azurePrv.ListRevisions(context.Background(), "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+	if len(revisions) != 0 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+}
+
+func TestWriteEnsureConflictAzure(t *testing.T) {
+	if skipAzureTests {
+		t.Skip("Skipping Azure tests")
+	}
+
+	// Copy a file into the workspace
+	if err := azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	// List revisions, there should be none
+	revisions, err := azurePrv.ListRevisions(context.Background(), "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+	if len(revisions) != 0 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	ce := (*ConflictError)(nil)
+	// Trying to update the file with a non-zero revision ID should fail with a conflict error
+	if err = azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{LatestRevisionID: "1"}); err == nil || !errors.As(err, &ce) {
+		t.Errorf("expected error when first updating file non-zero revision ID: %v", err)
+	}
+
+	// Also, using -1 for the revision ID should also fail because that is the same as "only write if the file doesn't exist"
+	if err = azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{LatestRevisionID: "-1"}); err == nil || !errors.As(err, &ce) {
+		t.Errorf("expected error when first updating file non-zero revision ID: %v", err)
+	}
+
+	// Update the file
+	if err = azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{}); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
 	// Now there should be one revision
 	revisions, err = azurePrv.ListRevisions(context.Background(), "test.txt")
 	if err != nil {
@@ -416,20 +534,64 @@ func TestWriteEnsureRevisionAzure(t *testing.T) {
 		t.Errorf("unexpected number of revisions: %d", len(revisions))
 	}
 
+	// Update the file again
+	if err = azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test3"), WriteOptions{LatestRevisionID: revisions[0].RevisionID}); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// Now there should be two revisions
+	revisions, err = azurePrv.ListRevisions(context.Background(), "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+	if len(revisions) != 2 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Trying to update the file again with the same revision ID should fail with a conflict error
+	if err = azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test4"), WriteOptions{LatestRevisionID: revisions[0].RevisionID}); err == nil || !errors.As(err, &ce) {
+		t.Errorf("expected error when updating file with same revision ID: %v", err)
+	}
+
+	latestRevisionID := revisions[1].RevisionID
+	// Delete the most recent revision
+	if err = azurePrv.DeleteRevision(context.Background(), "test.txt", latestRevisionID); err != nil {
+		t.Errorf("error deleting revision: %v", err)
+	}
+
+	// Now there should be one revision
+	revisions, err = azurePrv.ListRevisions(context.Background(), "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+	if len(revisions) != 1 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// We cannot update the file with this revision ID
+	ce = (*ConflictError)(nil)
+	if err = azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test5"), WriteOptions{LatestRevisionID: revisions[0].RevisionID}); err == nil || !errors.As(err, &ce) {
+		t.Errorf("expected error when updating file with zero revision ID: %v", err)
+	}
+
+	// Ensure that we can still create a new revision
+	if err = azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test5"), WriteOptions{LatestRevisionID: latestRevisionID}); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
 	// Delete the file
 	if err = azurePrv.DeleteFile(context.Background(), "test.txt"); err != nil {
-		t.Errorf("unexpected error when deleting file: %v", err)
+		t.Errorf("error removing file: %v", err)
 	}
 }
 
-func TestWriteEnsureNoRevisionAzure(t *testing.T) {
+func TestDeleteRevisionAzure(t *testing.T) {
 	if skipAzureTests {
 		t.Skip("Skipping Azure tests")
 	}
 
-	createRevision := false
 	// Copy a file into the workspace
-	if err := azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{CreateRevision: &createRevision}); err != nil {
+	if err := azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
 		t.Fatalf("error getting file to write: %v", err)
 	}
 
@@ -443,68 +605,76 @@ func TestWriteEnsureNoRevisionAzure(t *testing.T) {
 	}
 
 	// Update the file
-	if err = azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{CreateRevision: &createRevision}); err != nil {
+	if err = azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{}); err != nil {
 		t.Errorf("error getting file to write: %v", err)
 	}
 
-	// Now there should still be no revision
+	// Now there should be one revision
 	revisions, err = azurePrv.ListRevisions(context.Background(), "test.txt")
 	if err != nil {
 		t.Errorf("unexpected error when listing revisions: %v", err)
 	}
-	if len(revisions) != 0 {
+	if len(revisions) != 1 {
 		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Update the file
+	if err = azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test3"), WriteOptions{}); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// Now there should be two revisions
+	revisions, err = azurePrv.ListRevisions(context.Background(), "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+	if len(revisions) != 2 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Delete the first revision
+	if err = azurePrv.DeleteRevision(context.Background(), "test.txt", "1"); err != nil {
+		t.Errorf("unexpected error when deleting revision: %v", err)
+	}
+
+	// Now there should be one revision
+	revisions, err = azurePrv.ListRevisions(context.Background(), "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+	if len(revisions) != 1 || revisions[0].RevisionID != "2" {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Deleting the revision again should not produce an error
+	if err = azurePrv.DeleteRevision(context.Background(), "test.txt", "1"); err != nil {
+		t.Errorf("unexpected error when deleting revision: %v", err)
 	}
 
 	// Delete the file
 	if err = azurePrv.DeleteFile(context.Background(), "test.txt"); err != nil {
 		t.Errorf("unexpected error when deleting file: %v", err)
 	}
+
+	// Ensure the file no longer exists
+	if _, err = azurePrv.client.ServiceClient().NewContainerClient(azurePrv.containerName).NewBlockBlobClient(fmt.Sprintf("%s/%s", azurePrv.dir, "test.txt")).GetProperties(context.Background(), nil); err == nil {
+		t.Errorf("file should not exist after deleting")
+	}
+
+	// Ensure the revision file no longer exists
+	if _, err = azurePrv.client.ServiceClient().NewContainerClient(azurePrv.containerName).NewBlockBlobClient(fmt.Sprintf("revisions/%s/%s.2", azurePrv.dir, "test.txt")).GetProperties(context.Background(), nil); err == nil {
+		t.Errorf("revision should not exist after deleting")
+	}
 }
 
-func TestReadFileWithRevisionAzure(t *testing.T) {
+func TestNoCreateRevisionsClientAzure(t *testing.T) {
 	if skipAzureTests {
 		t.Skip("Skipping Azure tests")
 	}
 
-	// Copy a file into the workspace
-	if err := azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
-		t.Fatalf("error getting file to write: %v", err)
-	}
-
-	// Read the file
-	f, err := azurePrv.OpenFile(context.Background(), "test.txt", OpenOptions{WithLatestRevisionID: true})
-	if err != nil {
-		t.Errorf("error reading file: %v", err)
-	}
-
-	// Read the file contents
-	data, err := io.ReadAll(f)
-	if err != nil {
-		t.Errorf("error reading file contents: %v", err)
-	}
-
-	// Close the file
-	if err := f.Close(); err != nil {
-		t.Errorf("error closing file: %v", err)
-	}
-
-	if string(data) != "test" {
-		t.Errorf("unexpected file contents: %s", string(data))
-	}
-
-	// Get the revision ID
-	revisionID, err := f.GetRevisionID()
-	if err != nil {
-		t.Errorf("error getting revision: %v", err)
-	}
-	if revisionID != "0" {
-		t.Errorf("unexpected revision ID: %s", revisionID)
-	}
-
-	// Delete the file
-	if err = azurePrv.DeleteFile(context.Background(), "test.txt"); err != nil {
-		t.Errorf("error removing file: %v", err)
+	_, err := azureFactory.New(fmt.Sprintf("%s://%s/%s", AzureProvider, os.Getenv("WORKSPACE_PROVIDER_AZURE_CONTAINER"), revisionsDir))
+	if err == nil {
+		t.Errorf("expected error when creating client for revisions dir")
 	}
 }
 
@@ -613,5 +783,126 @@ func assertPathError(t *testing.T, err error, wantErr bool, errMsg string) {
 		}
 	} else if err != nil {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestReadFileWithRevisionAzure(t *testing.T) {
+	if skipAzureTests {
+		t.Skip("Skipping Azure tests")
+	}
+
+	// Copy a file into the workspace
+	if err := azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	// Read the file
+	f, err := azurePrv.OpenFile(context.Background(), "test.txt", OpenOptions{WithLatestRevisionID: true})
+	if err != nil {
+		t.Errorf("error reading file: %v", err)
+	}
+
+	// Read the file contents
+	data, err := io.ReadAll(f)
+	if err != nil {
+		t.Errorf("error reading file contents: %v", err)
+	}
+
+	// Close the file
+	if err := f.Close(); err != nil {
+		t.Errorf("error closing file: %v", err)
+	}
+
+	if string(data) != "test" {
+		t.Errorf("unexpected file contents: %s", string(data))
+	}
+
+	// Ensure that the revision is set and correct
+	revisionID, err := f.GetRevisionID()
+	if err != nil {
+		t.Errorf("error getting revision: %v", err)
+	}
+	if revisionID != "0" {
+		t.Errorf("unexpected revision ID: %s", revisionID)
+	}
+
+	// Update the file
+	if err = azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{LatestRevisionID: "0"}); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// Read the file
+	f, err = azurePrv.OpenFile(context.Background(), "test.txt", OpenOptions{WithLatestRevisionID: true})
+	if err != nil {
+		t.Errorf("error reading file: %v", err)
+	}
+
+	// Read the file contents
+	data, err = io.ReadAll(f)
+	if err != nil {
+		t.Errorf("error reading file contents: %v", err)
+	}
+
+	// Close the file
+	if err := f.Close(); err != nil {
+		t.Errorf("error closing file: %v", err)
+	}
+
+	if string(data) != "test2" {
+		t.Errorf("unexpected file contents: %s", string(data))
+	}
+
+	// Get the revision ID
+	revisionID, err = f.GetRevisionID()
+	if err != nil {
+		t.Errorf("error getting revision: %v", err)
+	}
+	if revisionID != "1" {
+		t.Errorf("unexpected revision ID: %s", revisionID)
+	}
+
+	// Delete the file
+	if err = azurePrv.DeleteFile(context.Background(), "test.txt"); err != nil {
+		t.Errorf("error removing file: %v", err)
+	}
+}
+
+func TestWriteEnsureNoRevisionAzure(t *testing.T) {
+	if skipAzureTests {
+		t.Skip("Skipping Azure tests")
+	}
+
+	createRevision := false
+	// Copy a file into the workspace
+	if err := azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{CreateRevision: &createRevision}); err != nil {
+		t.Fatalf("error getting file to write: %v", err)
+	}
+
+	// List revisions, there should be none
+	revisions, err := azurePrv.ListRevisions(context.Background(), "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+	if len(revisions) != 0 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Update the file
+	if err = azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test2"), WriteOptions{CreateRevision: &createRevision}); err != nil {
+		t.Errorf("error getting file to write: %v", err)
+	}
+
+	// Now there should still be no revision
+	revisions, err = azurePrv.ListRevisions(context.Background(), "test.txt")
+	if err != nil {
+		t.Errorf("unexpected error when listing revisions: %v", err)
+	}
+	if len(revisions) != 0 {
+		t.Errorf("unexpected number of revisions: %d", len(revisions))
+	}
+
+	// Delete the file
+	if err = azurePrv.DeleteFile(context.Background(), "test.txt"); err != nil {
+		t.Errorf("unexpected error when deleting file: %v", err)
 	}
 }
