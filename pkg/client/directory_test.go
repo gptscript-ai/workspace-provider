@@ -33,7 +33,7 @@ func TestMain(m *testing.M) {
 	dirPrv, _ = directoryFactory.New(directoryTestingID)
 
 	if !skipS3Tests {
-		s3Factory, _ = newS3(context.Background(), os.Getenv("WORKSPACE_PROVIDER_S3_BUCKET"), os.Getenv("WORKSPACE_PROVIDER_S3_BASE_ENDPOINT"))
+		s3Factory, _ = newS3(context.Background(), os.Getenv("WORKSPACE_PROVIDER_S3_BUCKET"), os.Getenv("WORKSPACE_PROVIDER_S3_BASE_ENDPOINT"), os.Getenv("WORKSPACE_PROVIDER_S3_USE_PATH_STYLE") == "true")
 		// This won't ever error because it doesn't create anything.
 		s3TestingID = s3Factory.Create()
 

@@ -14,6 +14,7 @@ type workspaceProvider struct {
 	DataHome              string `usage:"The data home directory or bucket name" env:"WORKSPACE_PROVIDER_DATA_HOME"`
 	S3Bucket              string `usage:"The S3 bucket name" name:"s3-bucket" env:"WORKSPACE_PROVIDER_S3_BUCKET"`
 	S3BaseEndpoint        string `usage:"The S3 base endpoint to use with S3 compatible providers" name:"s3-base-endpoint" env:"WORKSPACE_PROVIDER_S3_BASE_ENDPOINT"`
+	S3UsePathStyle        bool   `usage:"Use path style addressing for S3 compatible providers" name:"s3-use-path-style" env:"WORKSPACE_PROVIDER_S3_USE_PATH_STYLE"`
 	AzureContainer        string `usage:"The Azure container name" name:"azure-container" env:"WORKSPACE_PROVIDER_AZURE_CONTAINER"`
 	AzureConnectionString string `usage:"The Azure connection string" name:"azure-connection-string" env:"WORKSPACE_PROVIDER_AZURE_CONNECTION_STRING"`
 
@@ -73,6 +74,7 @@ func (w *workspaceProvider) PersistentPre(cmd *cobra.Command, _ []string) error 
 		DirectoryDataHome:     w.DataHome,
 		S3BucketName:          w.S3Bucket,
 		S3BaseEndpoint:        w.S3BaseEndpoint,
+		S3UsePathStyle:        w.S3UsePathStyle,
 		AzureContainerName:    w.AzureContainer,
 		AzureConnectionString: w.AzureConnectionString,
 	})
