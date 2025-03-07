@@ -718,7 +718,11 @@ func TestPathValidationAzure(t *testing.T) {
 	if err := azurePrv.WriteFile(context.Background(), "test.txt", strings.NewReader("test"), WriteOptions{}); err != nil {
 		t.Fatalf("error creating test file: %v", err)
 	}
-	defer azurePrv.DeleteFile(context.Background(), "test.txt")
+	defer func() {
+		if err := azurePrv.DeleteFile(context.Background(), "test.txt"); err != nil {
+			t.Errorf("error deleting test file: %v", err)
+		}
+	}()
 
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("WriteFile/%s", tt.name), func(t *testing.T) {
