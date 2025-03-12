@@ -13,20 +13,30 @@ import (
 )
 
 var c, _ = New(context.Background(), Options{
-	S3BucketName:   os.Getenv("WORKSPACE_PROVIDER_S3_BUCKET"),
-	S3BaseEndpoint: os.Getenv("WORKSPACE_PROVIDER_S3_BASE_ENDPOINT"),
+	S3BucketName:          os.Getenv("WORKSPACE_PROVIDER_S3_BUCKET"),
+	S3BaseEndpoint:        os.Getenv("WORKSPACE_PROVIDER_S3_BASE_ENDPOINT"),
+	AzureContainerName:    os.Getenv("WORKSPACE_PROVIDER_AZURE_CONTAINER"),
+	AzureConnectionString: os.Getenv("WORKSPACE_PROVIDER_AZURE_CONNECTION_STRING"),
 })
 
 func TestProviders(t *testing.T) {
 	providers := c.Providers()
 
 	for _, p := range providers {
-		if p != DirectoryProvider && p != S3Provider {
+		if p != DirectoryProvider && p != S3Provider && p != AzureProvider {
 			t.Errorf("invalid provider: %s", p)
 		}
 	}
 
-	if len(providers) != 2 {
+	expectedCount := 1
+	if !skipAzureTests {
+		expectedCount++
+	}
+	if !skipS3Tests {
+		expectedCount++
+	}
+
+	if len(providers) != expectedCount {
 		t.Errorf("unexpected number of providers: %d", len(providers))
 	}
 }

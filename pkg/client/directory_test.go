@@ -16,11 +16,15 @@ import (
 var (
 	directoryFactory   workspaceFactory
 	s3Factory          workspaceFactory
+	azureFactory       workspaceFactory
 	directoryTestingID string
 	s3TestingID        string
+	azureTestingID     string
 	dirPrv             workspaceClient
 	s3Prv              *s3Provider
+	azurePrv           *azureProvider
 	skipS3Tests        = os.Getenv("WORKSPACE_PROVIDER_S3_BUCKET") == ""
+	skipAzureTests     = os.Getenv("WORKSPACE_PROVIDER_AZURE_CONNECTION_STRING") == "" || os.Getenv("WORKSPACE_PROVIDER_AZURE_CONTAINER") == ""
 )
 
 func TestMain(m *testing.M) {
@@ -37,6 +41,15 @@ func TestMain(m *testing.M) {
 		s3Prv = s3Client.(*s3Provider)
 	}
 
+	if !skipAzureTests {
+		azureFactory, _ = newAzure(os.Getenv("WORKSPACE_PROVIDER_AZURE_CONTAINER"), os.Getenv("WORKSPACE_PROVIDER_AZURE_CONNECTION_STRING"))
+		// This won't ever error because it doesn't create anything.
+		azureTestingID = azureFactory.Create()
+
+		azureClient, _ := azureFactory.New(azureTestingID)
+		azurePrv = azureClient.(*azureProvider)
+	}
+
 	exitCode := m.Run()
 
 	var errs []error
@@ -47,6 +60,12 @@ func TestMain(m *testing.M) {
 	if !skipS3Tests {
 		if err := s3Factory.Rm(context.Background(), s3TestingID); err != nil {
 			errs = append(errs, fmt.Errorf("error removing s3 workspace: %v", err))
+		}
+	}
+
+	if !skipAzureTests {
+		if err := azureFactory.Rm(context.Background(), azureTestingID); err != nil {
+			errs = append(errs, fmt.Errorf("error removing azure workspace: %v", err))
 		}
 	}
 
