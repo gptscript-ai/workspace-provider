@@ -21,7 +21,7 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 )
 
-func newS3(ctx context.Context, bucket, baseEndpoint string) (workspaceFactory, error) {
+func newS3(ctx context.Context, bucket string, baseEndpoint string, usePathStyle bool) (workspaceFactory, error) {
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		return nil, err
@@ -31,6 +31,7 @@ func newS3(ctx context.Context, bucket, baseEndpoint string) (workspaceFactory, 
 		if baseEndpoint != "" {
 			o.BaseEndpoint = aws.String(baseEndpoint)
 		}
+		o.UsePathStyle = usePathStyle // often required e.g. for MinIO which requires extra configuration for virtual hosted-style requests
 	})
 	return &s3Provider{
 		bucket: bucket,

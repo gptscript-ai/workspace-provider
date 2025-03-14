@@ -15,6 +15,7 @@ import (
 var c, _ = New(context.Background(), Options{
 	S3BucketName:          os.Getenv("WORKSPACE_PROVIDER_S3_BUCKET"),
 	S3BaseEndpoint:        os.Getenv("WORKSPACE_PROVIDER_S3_BASE_ENDPOINT"),
+	S3UsePathStyle:        os.Getenv("WORKSPACE_PROVIDER_S3_USE_PATH_STYLE") == "true",
 	AzureContainerName:    os.Getenv("WORKSPACE_PROVIDER_AZURE_CONTAINER"),
 	AzureConnectionString: os.Getenv("WORKSPACE_PROVIDER_AZURE_CONNECTION_STRING"),
 })
@@ -83,7 +84,7 @@ func TestCreateAndRmS3Provider(t *testing.T) {
 	bucket, dir, _ := strings.Cut(strings.TrimPrefix(id, S3Provider+"://"), "/")
 	testS3Provider := &s3Provider{
 		bucket: bucket,
-		client: s3Prv.client,
+		client: s3TestSetups[0].provider.client,
 	}
 
 	// Nothing should be created
@@ -316,6 +317,10 @@ func TestCreateAndRmS3ProviderFromDirectoryProvider(t *testing.T) {
 	workspaceContent, err := c.Ls(context.Background(), id, "")
 	if err != nil {
 		t.Errorf("unexpected error when listing workspaceContent: %v", err)
+	}
+
+	if len(workspaceContent) == 0 {
+		t.Fatalf("workspaceContent is empty")
 	}
 
 	if len(workspaceContent) != 1 {

@@ -13,17 +13,22 @@ import (
 	"testing"
 )
 
+type s3TestSetup struct {
+	name      string
+	factory   workspaceFactory
+	testingID string
+	provider  *s3Provider
+}
+
 var (
 	directoryFactory   workspaceFactory
-	s3Factory          workspaceFactory
-	azureFactory       workspaceFactory
 	directoryTestingID string
-	s3TestingID        string
-	azureTestingID     string
 	dirPrv             workspaceClient
-	s3Prv              *s3Provider
-	azurePrv           *azureProvider
+	s3TestSetups       []s3TestSetup
 	skipS3Tests        = os.Getenv("WORKSPACE_PROVIDER_S3_BUCKET") == ""
+	azureFactory       workspaceFactory
+	azureTestingID     string
+	azurePrv           *azureProvider
 	skipAzureTests     = os.Getenv("WORKSPACE_PROVIDER_AZURE_CONNECTION_STRING") == "" || os.Getenv("WORKSPACE_PROVIDER_AZURE_CONTAINER") == ""
 )
 
@@ -33,12 +38,30 @@ func TestMain(m *testing.M) {
 	dirPrv, _ = directoryFactory.New(directoryTestingID)
 
 	if !skipS3Tests {
-		s3Factory, _ = newS3(context.Background(), os.Getenv("WORKSPACE_PROVIDER_S3_BUCKET"), os.Getenv("WORKSPACE_PROVIDER_S3_BASE_ENDPOINT"))
-		// This won't ever error because it doesn't create anything.
-		s3TestingID = s3Factory.Create()
+		if os.Getenv("WORKSPACE_PROVIDER_S3_USE_PATH_STYLE") != "true" {
+			s3Factory, _ := newS3(context.Background(), os.Getenv("WORKSPACE_PROVIDER_S3_BUCKET"), os.Getenv("WORKSPACE_PROVIDER_S3_BASE_ENDPOINT"), false)
+			// This won't ever error because it doesn't create anything.
+			s3TestingID := s3Factory.Create()
 
-		s3Client, _ := s3Factory.New(s3TestingID)
-		s3Prv = s3Client.(*s3Provider)
+			s3Client, _ := s3Factory.New(s3TestingID)
+			s3Prv := s3Client.(*s3Provider)
+			s3TestSetups = append(s3TestSetups, s3TestSetup{
+				name:      "default",
+				factory:   s3Factory,
+				testingID: s3TestingID,
+				provider:  s3Prv,
+			})
+		}
+
+		s3PathStyleFactory, _ := newS3(context.Background(), os.Getenv("WORKSPACE_PROVIDER_S3_BUCKET"), os.Getenv("WORKSPACE_PROVIDER_S3_BASE_ENDPOINT"), true)
+		s3PathStyleTestingID := s3PathStyleFactory.Create()
+		s3PathStyleClient, _ := s3PathStyleFactory.New(s3PathStyleTestingID)
+		s3TestSetups = append(s3TestSetups, s3TestSetup{
+			name:      "use-path-style",
+			factory:   s3PathStyleFactory,
+			testingID: s3PathStyleTestingID,
+			provider:  s3PathStyleClient.(*s3Provider),
+		})
 	}
 
 	if !skipAzureTests {
@@ -58,8 +81,10 @@ func TestMain(m *testing.M) {
 	}
 
 	if !skipS3Tests {
-		if err := s3Factory.Rm(context.Background(), s3TestingID); err != nil {
-			errs = append(errs, fmt.Errorf("error removing s3 workspace: %v", err))
+		for _, s3TS := range s3TestSetups {
+			if err := s3TS.factory.Rm(context.Background(), s3TS.testingID); err != nil {
+				errs = append(errs, fmt.Errorf("error removing s3 workspace: %v", err))
+			}
 		}
 	}
 

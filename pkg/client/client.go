@@ -42,6 +42,7 @@ type Options struct {
 	DirectoryDataHome     string
 	S3BucketName          string
 	S3BaseEndpoint        string
+	S3UsePathStyle        bool
 	AzureContainerName    string
 	AzureConnectionString string
 }
@@ -59,6 +60,7 @@ func complete(opts ...Options) Options {
 		if o.S3BaseEndpoint != "" {
 			opt.S3BaseEndpoint = o.S3BaseEndpoint
 		}
+		opt.S3UsePathStyle = o.S3UsePathStyle
 		if o.AzureContainerName != "" {
 			opt.AzureContainerName = o.AzureContainerName
 		}
@@ -82,7 +84,7 @@ func New(ctx context.Context, opts ...Options) (*Client, error) {
 	}
 
 	if opt.S3BucketName != "" {
-		factory, err := newS3(ctx, opt.S3BucketName, opt.S3BaseEndpoint)
+		factory, err := newS3(ctx, opt.S3BucketName, opt.S3BaseEndpoint, opt.S3UsePathStyle)
 		if err != nil {
 			return nil, err
 		}
