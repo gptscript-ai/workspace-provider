@@ -127,6 +127,7 @@ func (a *azureProvider) Rm(ctx context.Context, id string) error {
 }
 
 func (a *azureProvider) Ls(ctx context.Context, prefix string) ([]string, error) {
+	prefix = strings.TrimPrefix(prefix, "/")
 	if err := a.validatePath(prefix); err != nil {
 		return nil, err
 	}
@@ -157,6 +158,7 @@ func (a *azureProvider) Ls(ctx context.Context, prefix string) ([]string, error)
 }
 
 func (a *azureProvider) DeleteFile(ctx context.Context, filePath string) error {
+	filePath = strings.TrimPrefix(filePath, "/")
 	if err := a.validatePath(filePath); err != nil {
 		return err
 	}
@@ -191,6 +193,7 @@ func (a *azureProvider) DeleteFile(ctx context.Context, filePath string) error {
 }
 
 func (a *azureProvider) OpenFile(ctx context.Context, filePath string, opt OpenOptions) (*File, error) {
+	filePath = strings.TrimPrefix(filePath, "/")
 	if err := a.validatePath(filePath); err != nil {
 		return nil, err
 	}
@@ -221,6 +224,7 @@ func (a *azureProvider) OpenFile(ctx context.Context, filePath string, opt OpenO
 }
 
 func (a *azureProvider) WriteFile(ctx context.Context, fileName string, reader io.Reader, opt WriteOptions) error {
+	fileName = strings.TrimPrefix(fileName, "/")
 	if err := a.validatePath(fileName); err != nil {
 		return err
 	}
@@ -266,6 +270,7 @@ func (a *azureProvider) WriteFile(ctx context.Context, fileName string, reader i
 }
 
 func (a *azureProvider) StatFile(ctx context.Context, fileName string, opt StatOptions) (FileInfo, error) {
+	fileName = strings.TrimPrefix(fileName, "/")
 	if err := a.validatePath(fileName); err != nil {
 		return FileInfo{}, err
 	}
@@ -323,6 +328,7 @@ func (a *azureProvider) StatFile(ctx context.Context, fileName string, opt StatO
 }
 
 func (a *azureProvider) RemoveAllWithPrefix(ctx context.Context, prefix string) error {
+	prefix = strings.TrimPrefix(prefix, "/")
 	if err := a.validatePath(prefix); err != nil {
 		return err
 	}
@@ -355,6 +361,7 @@ func (a *azureProvider) RemoveAllWithPrefix(ctx context.Context, prefix string) 
 }
 
 func (a *azureProvider) ListRevisions(ctx context.Context, fileName string) ([]RevisionInfo, error) {
+	fileName = strings.TrimPrefix(fileName, "/")
 	if err := a.validatePath(fileName); err != nil {
 		return nil, err
 	}
@@ -362,6 +369,7 @@ func (a *azureProvider) ListRevisions(ctx context.Context, fileName string) ([]R
 }
 
 func (a *azureProvider) GetRevision(ctx context.Context, fileName, revisionID string) (*File, error) {
+	fileName = strings.TrimPrefix(fileName, "/")
 	if err := a.validatePath(fileName); err != nil {
 		return nil, err
 	}
@@ -369,6 +377,7 @@ func (a *azureProvider) GetRevision(ctx context.Context, fileName, revisionID st
 }
 
 func (a *azureProvider) DeleteRevision(ctx context.Context, fileName, revisionID string) error {
+	fileName = strings.TrimPrefix(fileName, "/")
 	if err := a.validatePath(fileName); err != nil {
 		return err
 	}
