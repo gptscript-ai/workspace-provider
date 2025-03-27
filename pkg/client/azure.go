@@ -193,6 +193,7 @@ func (a *azureProvider) DeleteFile(ctx context.Context, filePath string) error {
 }
 
 func (a *azureProvider) OpenFile(ctx context.Context, filePath string, opt OpenOptions) (*File, error) {
+	originalFilePath := filePath
 	filePath = strings.TrimPrefix(filePath, "/")
 	if err := a.validatePath(filePath); err != nil {
 		return nil, err
@@ -203,7 +204,8 @@ func (a *azureProvider) OpenFile(ctx context.Context, filePath string, opt OpenO
 	if err != nil {
 		var storageErr *azcore.ResponseError
 		if errors.As(err, &storageErr) && storageErr.StatusCode == 404 {
-			return nil, newNotFoundError(fmt.Sprintf("%s://%s/%s", AzureProvider, a.containerName, a.dir), filePath)
+			// We need to use the original file path here, because that is how the gptscript sdk will determine whether this is a not found error.
+			return nil, newNotFoundError(fmt.Sprintf("%s://%s/%s", AzureProvider, a.containerName, a.dir), originalFilePath)
 		}
 		return nil, err
 	}
@@ -270,6 +272,7 @@ func (a *azureProvider) WriteFile(ctx context.Context, fileName string, reader i
 }
 
 func (a *azureProvider) StatFile(ctx context.Context, fileName string, opt StatOptions) (FileInfo, error) {
+	originalFileName := fileName
 	fileName = strings.TrimPrefix(fileName, "/")
 	if err := a.validatePath(fileName); err != nil {
 		return FileInfo{}, err
@@ -280,7 +283,8 @@ func (a *azureProvider) StatFile(ctx context.Context, fileName string, opt StatO
 	if err != nil {
 		var storageErr *azcore.ResponseError
 		if errors.As(err, &storageErr) && storageErr.StatusCode == 404 {
-			return FileInfo{}, newNotFoundError(fmt.Sprintf("%s://%s/%s", AzureProvider, a.containerName, a.dir), fileName)
+			// We need to use the original file name here, because that is how the gptscript sdk will determine whether this is a not found error.
+			return FileInfo{}, newNotFoundError(fmt.Sprintf("%s://%s/%s", AzureProvider, a.containerName, a.dir), originalFileName)
 		}
 		return FileInfo{}, err
 	}
