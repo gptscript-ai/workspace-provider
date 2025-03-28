@@ -41,7 +41,7 @@ type azureProvider struct {
 	revisionsProvider  *azureProvider
 }
 
-func (a *azureProvider) validatePath(path string) error {
+func (a *azureProvider) validatePath(path string, allowTrailingSlash bool) error {
 	if path == "" {
 		return nil // empty path is valid in some contexts (e.g., Ls root)
 	}
@@ -59,7 +59,7 @@ func (a *azureProvider) validatePath(path string) error {
 	// Azure Blob Storage naming rules:
 	// - Cannot start or end with '/'
 	// - Cannot contain consecutive forward slashes
-	if strings.HasSuffix(path, "/") {
+	if !allowTrailingSlash && strings.HasSuffix(path, "/") {
 		return fmt.Errorf("invalid path: cannot end with '/'")
 	}
 	if strings.Contains(path, "//") {
@@ -128,7 +128,7 @@ func (a *azureProvider) Rm(ctx context.Context, id string) error {
 
 func (a *azureProvider) Ls(ctx context.Context, prefix string) ([]string, error) {
 	prefix = strings.TrimPrefix(prefix, "/")
-	if err := a.validatePath(prefix); err != nil {
+	if err := a.validatePath(prefix, true); err != nil {
 		return nil, err
 	}
 	if prefix != "" {
@@ -159,7 +159,7 @@ func (a *azureProvider) Ls(ctx context.Context, prefix string) ([]string, error)
 
 func (a *azureProvider) DeleteFile(ctx context.Context, filePath string) error {
 	filePath = strings.TrimPrefix(filePath, "/")
-	if err := a.validatePath(filePath); err != nil {
+	if err := a.validatePath(filePath, false); err != nil {
 		return err
 	}
 	blobClient := a.client.ServiceClient().NewContainerClient(a.containerName).NewBlockBlobClient(fmt.Sprintf("%s/%s", a.dir, filePath))
@@ -195,7 +195,7 @@ func (a *azureProvider) DeleteFile(ctx context.Context, filePath string) error {
 func (a *azureProvider) OpenFile(ctx context.Context, filePath string, opt OpenOptions) (*File, error) {
 	originalFilePath := filePath
 	filePath = strings.TrimPrefix(filePath, "/")
-	if err := a.validatePath(filePath); err != nil {
+	if err := a.validatePath(filePath, false); err != nil {
 		return nil, err
 	}
 	blobClient := a.client.ServiceClient().NewContainerClient(a.containerName).NewBlockBlobClient(fmt.Sprintf("%s/%s", a.dir, filePath))
@@ -227,7 +227,7 @@ func (a *azureProvider) OpenFile(ctx context.Context, filePath string, opt OpenO
 
 func (a *azureProvider) WriteFile(ctx context.Context, fileName string, reader io.Reader, opt WriteOptions) error {
 	fileName = strings.TrimPrefix(fileName, "/")
-	if err := a.validatePath(fileName); err != nil {
+	if err := a.validatePath(fileName, false); err != nil {
 		return err
 	}
 	if a.revisionsProvider != nil && (opt.CreateRevision == nil || *opt.CreateRevision) {
@@ -274,7 +274,7 @@ func (a *azureProvider) WriteFile(ctx context.Context, fileName string, reader i
 func (a *azureProvider) StatFile(ctx context.Context, fileName string, opt StatOptions) (FileInfo, error) {
 	originalFileName := fileName
 	fileName = strings.TrimPrefix(fileName, "/")
-	if err := a.validatePath(fileName); err != nil {
+	if err := a.validatePath(fileName, false); err != nil {
 		return FileInfo{}, err
 	}
 	blobClient := a.client.ServiceClient().NewContainerClient(a.containerName).NewBlockBlobClient(fmt.Sprintf("%s/%s", a.dir, fileName))
@@ -333,7 +333,7 @@ func (a *azureProvider) StatFile(ctx context.Context, fileName string, opt StatO
 
 func (a *azureProvider) RemoveAllWithPrefix(ctx context.Context, prefix string) error {
 	prefix = strings.TrimPrefix(prefix, "/")
-	if err := a.validatePath(prefix); err != nil {
+	if err := a.validatePath(prefix, true); err != nil {
 		return err
 	}
 	if prefix != "" {
@@ -366,7 +366,7 @@ func (a *azureProvider) RemoveAllWithPrefix(ctx context.Context, prefix string) 
 
 func (a *azureProvider) ListRevisions(ctx context.Context, fileName string) ([]RevisionInfo, error) {
 	fileName = strings.TrimPrefix(fileName, "/")
-	if err := a.validatePath(fileName); err != nil {
+	if err := a.validatePath(fileName, false); err != nil {
 		return nil, err
 	}
 	return listRevisions(ctx, a.revisionsProvider, fmt.Sprintf("%s://%s/%s", AzureProvider, a.containerName, a.dir), fileName)
@@ -374,7 +374,7 @@ func (a *azureProvider) ListRevisions(ctx context.Context, fileName string) ([]R
 
 func (a *azureProvider) GetRevision(ctx context.Context, fileName, revisionID string) (*File, error) {
 	fileName = strings.TrimPrefix(fileName, "/")
-	if err := a.validatePath(fileName); err != nil {
+	if err := a.validatePath(fileName, false); err != nil {
 		return nil, err
 	}
 	return getRevision(ctx, a.revisionsProvider, fileName, revisionID)
@@ -382,7 +382,7 @@ func (a *azureProvider) GetRevision(ctx context.Context, fileName, revisionID st
 
 func (a *azureProvider) DeleteRevision(ctx context.Context, fileName, revisionID string) error {
 	fileName = strings.TrimPrefix(fileName, "/")
-	if err := a.validatePath(fileName); err != nil {
+	if err := a.validatePath(fileName, false); err != nil {
 		return err
 	}
 	return deleteRevision(ctx, a.revisionsProvider, fileName, revisionID)

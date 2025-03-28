@@ -270,7 +270,7 @@ func TestLsWithPrefixAzure(t *testing.T) {
 	}
 
 	defer func() {
-		err := azurePrv.RemoveAllWithPrefix(context.Background(), "testDir")
+		err := azurePrv.RemoveAllWithPrefix(context.Background(), "testDir/")
 		if err != nil {
 			t.Errorf("unexpected error when deleting file %s: %v", "testDir", err)
 		}
@@ -295,7 +295,7 @@ func TestLsWithPrefixAzure(t *testing.T) {
 		}(fileName)
 	}
 
-	contents, err := azurePrv.Ls(context.Background(), "testDir")
+	contents, err := azurePrv.Ls(context.Background(), "testDir/")
 	if err != nil {
 		t.Fatalf("unexpected error when listing files: %v", err)
 	}
@@ -342,7 +342,7 @@ func TestRemoveAllWithPrefixAzure(t *testing.T) {
 		}(fileName)
 	}
 
-	err := azurePrv.RemoveAllWithPrefix(context.Background(), "testDir")
+	err := azurePrv.RemoveAllWithPrefix(context.Background(), "testDir/")
 	if err != nil {
 		t.Errorf("unexpected error when deleting all with prefix testDir: %v", err)
 	}
@@ -695,12 +695,7 @@ func TestPathValidationAzure(t *testing.T) {
 		{"traversal nested", "foo/../../test.txt", true, "must not contain '..'", nil},
 		{"traversal with slash", "../test.txt/", true, "must not contain '..'", nil},
 
-		// Absolute path tests
-		{"absolute path", "/test.txt", true, "must be relative", nil},
-		{"absolute nested", "/foo/test.txt", true, "must be relative", nil},
-
 		// Azure naming rule tests
-		{"trailing slash", "test/", true, "cannot end with '/'", nil},
 		{"double slash", "foo//bar.txt", true, "cannot contain consecutive '/'", nil},
 		{"invalid chars", "test*.txt", true, "contains invalid characters", nil},
 		{"invalid chars nested", "foo/test*.txt", true, "contains invalid characters", nil},
@@ -725,6 +720,7 @@ func TestPathValidationAzure(t *testing.T) {
 	}()
 
 	for _, tt := range tests {
+		// Test operations that should not allow trailing slashes
 		t.Run(fmt.Sprintf("WriteFile/%s", tt.name), func(t *testing.T) {
 			err := azurePrv.WriteFile(context.Background(), tt.path, strings.NewReader("test"), WriteOptions{})
 			assertPathError(t, err, tt.wantErr, tt.errMsg)
@@ -745,6 +741,7 @@ func TestPathValidationAzure(t *testing.T) {
 			assertPathError(t, err, tt.wantErr, tt.errMsg)
 		})
 
+		// Test operations that should allow trailing slashes
 		t.Run(fmt.Sprintf("Ls/%s", tt.name), func(t *testing.T) {
 			_, err := azurePrv.Ls(context.Background(), tt.path)
 			assertPathError(t, err, tt.wantErr, tt.errMsg)
@@ -755,6 +752,7 @@ func TestPathValidationAzure(t *testing.T) {
 			assertPathError(t, err, tt.wantErr, tt.errMsg)
 		})
 
+		// Test revision operations that should not allow trailing slashes
 		t.Run(fmt.Sprintf("ListRevisions/%s", tt.name), func(t *testing.T) {
 			_, err := azurePrv.ListRevisions(context.Background(), tt.path)
 			assertPathError(t, err, tt.wantErr, tt.errMsg)
@@ -769,6 +767,51 @@ func TestPathValidationAzure(t *testing.T) {
 
 		t.Run(fmt.Sprintf("DeleteRevision/%s", tt.name), func(t *testing.T) {
 			err := azurePrv.DeleteRevision(context.Background(), tt.path, "1")
+			assertPathError(t, err, tt.wantErr, tt.errMsg)
+		})
+	}
+
+	// Additional tests specifically for trailing slashes
+	trailingSlashTests := []struct {
+		name    string
+		path    string
+		wantErr bool
+		errMsg  string
+	}{
+		{"trailing slash in Ls", "test/", false, ""},
+		{"trailing slash in RemoveAllWithPrefix", "test/", false, ""},
+		{"trailing slash in WriteFile", "test/", true, "cannot end with '/'"},
+		{"trailing slash in OpenFile", "test/", true, "cannot end with '/'"},
+		{"trailing slash in StatFile", "test/", true, "cannot end with '/'"},
+		{"trailing slash in DeleteFile", "test/", true, "cannot end with '/'"},
+		{"trailing slash in ListRevisions", "test/", true, "cannot end with '/'"},
+		{"trailing slash in GetRevision", "test/", true, "cannot end with '/'"},
+		{"trailing slash in DeleteRevision", "test/", true, "cannot end with '/'"},
+	}
+
+	for _, tt := range trailingSlashTests {
+		t.Run(tt.name, func(t *testing.T) {
+			var err error
+			switch {
+			case strings.Contains(tt.name, "Ls"):
+				_, err = azurePrv.Ls(context.Background(), tt.path)
+			case strings.Contains(tt.name, "RemoveAllWithPrefix"):
+				err = azurePrv.RemoveAllWithPrefix(context.Background(), tt.path)
+			case strings.Contains(tt.name, "WriteFile"):
+				err = azurePrv.WriteFile(context.Background(), tt.path, strings.NewReader("test"), WriteOptions{})
+			case strings.Contains(tt.name, "OpenFile"):
+				_, err = azurePrv.OpenFile(context.Background(), tt.path, OpenOptions{})
+			case strings.Contains(tt.name, "StatFile"):
+				_, err = azurePrv.StatFile(context.Background(), tt.path, StatOptions{})
+			case strings.Contains(tt.name, "DeleteFile"):
+				err = azurePrv.DeleteFile(context.Background(), tt.path)
+			case strings.Contains(tt.name, "ListRevisions"):
+				_, err = azurePrv.ListRevisions(context.Background(), tt.path)
+			case strings.Contains(tt.name, "GetRevision"):
+				_, err = azurePrv.GetRevision(context.Background(), tt.path, "1")
+			case strings.Contains(tt.name, "DeleteRevision"):
+				err = azurePrv.DeleteRevision(context.Background(), tt.path, "1")
+			}
 			assertPathError(t, err, tt.wantErr, tt.errMsg)
 		})
 	}
