@@ -20,18 +20,18 @@ func Run(ctx context.Context, client *client.Client, port int) error {
 	}
 
 	mux.HandleFunc("/healthz", s.healthz)
-	mux.HandleFunc("/create", s.create)
-	mux.HandleFunc("/rm/{id}", s.rm)
-	mux.HandleFunc("/ls/{id}/{prefix...}", s.ls)
-	mux.HandleFunc("/read-file/{id}/{fileName}", s.readFile)
-	mux.HandleFunc("/read-file-with-revision/{id}/{fileName}", s.readFileWithRevision)
-	mux.HandleFunc("/write-file/{id}/{fileName}", s.writeFile)
-	mux.HandleFunc("/rm-file/{id}/{fileName}", s.deleteFile)
-	mux.HandleFunc("/stat-file/{id}/{fileName}", s.statFile)
-	mux.HandleFunc("/rm-with-prefix/{id}/{prefix}", s.removeAllWithPrefix)
-	mux.HandleFunc("/list-revisions/{id}/{fileName}", s.listRevisions)
-	mux.HandleFunc("/get-revision/{id}/{fileName}/{revisionID}", s.getRevision)
-	mux.HandleFunc("/delete-revision/{id}/{fileName}/{revisionID}", s.deleteRevision)
+	mux.HandleFunc("POST /create", s.create)
+	mux.HandleFunc("POST /rm/{id}", s.rm)
+	mux.HandleFunc("POST /ls/{id}/{prefix...}", s.ls)
+	mux.HandleFunc("POST /read-file/{id}/{fileName}", s.readFile)
+	mux.HandleFunc("POST /read-file-with-revision/{id}/{fileName}", s.readFileWithRevision)
+	mux.HandleFunc("POST /write-file/{id}/{fileName}", s.writeFile)
+	mux.HandleFunc("POST /rm-file/{id}/{fileName}", s.deleteFile)
+	mux.HandleFunc("POST /stat-file/{id}/{fileName}", s.statFile)
+	mux.HandleFunc("POST /rm-with-prefix/{id}/{prefix}", s.removeAllWithPrefix)
+	mux.HandleFunc("POST /list-revisions/{id}/{fileName}", s.listRevisions)
+	mux.HandleFunc("POST /get-revision/{id}/{fileName}/{revisionID}", s.getRevision)
+	mux.HandleFunc("POST /delete-revision/{id}/{fileName}/{revisionID}", s.deleteRevision)
 
 	context.AfterFunc(ctx, func() {
 		if err := s.httpServer.Shutdown(context.Background()); err != nil {
