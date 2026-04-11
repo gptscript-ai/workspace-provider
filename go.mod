@@ -1,6 +1,6 @@
 module github.com/gptscript-ai/workspace-provider
 
-go 1.25.3
+go 1.26.2
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.10.0
